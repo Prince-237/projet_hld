@@ -74,8 +74,8 @@ if (isset($_POST['btn_login'])) {
                     <hr class="my-4">
                     
                     <div class="text-center">
-                        <p class="mb-0 text-muted">Nouveau collaborateur ?</p>
-                        <a href="inscription.php" class="text-decoration-none fw-bold text-primary">Créer un compte personnel</a>
+                        <p class="mb-0 text-muted">Nouveau utilisateur ?</p>
+                        <a href="inscription.php" class="text-decoration-none fw-bold text-primary">Créer un compte utilisateur</a>
                     </div>
                 </form>
             </div>

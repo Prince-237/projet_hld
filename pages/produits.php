@@ -1,109 +1,61 @@
 <?php
 require_once '../config/db.php';
 session_start();
+if (!isset($_SESSION['user_id'])) { header("Location: ../index.php"); exit(); }
+$isAdmin = ($_SESSION['role'] === 'admin');
 
-// 1. Logique d'insertion (Si on a cliqué sur le bouton Enregistrer du formulaire)
-if (isset($_POST['btn_ajouter'])) {
-    $nom = htmlspecialchars($_POST['nom_medicament']);
+if ($isAdmin && isset($_POST['btn_ajouter'])) {
+    $nom = htmlspecialchars($_POST['nom']);
     $forme = htmlspecialchars($_POST['forme']);
     $dosage = htmlspecialchars($_POST['dosage']);
-    $seuil = intval($_POST['seuil_alerte']);
-
-    $sql = "INSERT INTO produits (nom_medicament, forme, dosage, seuil_alerte) VALUES (?, ?, ?, ?)";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$nom, $forme, $dosage, $seuil]);
-    
-    header("Location: produits.php?success=1");
-    exit();
+    $stmt = $pdo->prepare("INSERT INTO produits (nom_medicament, forme, dosage, seuil_alerte, stock_total) VALUES (?, ?, ?, 0, 0)");
+    $stmt->execute([$nom, $forme, $dosage]);
+    header("Location: produits.php"); exit();
 }
 
-// 2. Récupération des produits pour l'affichage
-$query = $pdo->query("SELECT * FROM produits ORDER BY nom_medicament ASC");
-$produits = $query->fetchAll();
+$produits = $pdo->query("SELECT * FROM produits ORDER BY nom_medicament ASC")->fetchAll();
+include '../includes/header.php';
 ?>
 
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <title>Gestion des Produits - Laquintinie</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-
-<div class="container mt-5">
+<div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>📦 Catalogue des Médicaments</h2>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalAjout">
-            + Ajouter un produit
-        </button>
+        <h2>Catalogue des Produits</h2>
+        <?php if($isAdmin): ?>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalProduit">+ Nouveau Produit</button>
+        <?php endif; ?>
     </div>
 
-    <div class="card shadow">
-        <div class="card-body">
-            <table class="table table-hover">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Nom</th>
-                        <th>Forme</th>
-                        <th>Dosage</th>
-                        <th>Seuil d'alerte</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($produits as $p): ?>
-                    <tr>
-                        <td><?php echo $p['nom_medicament']; ?></td>
-                        <td><?php echo $p['forme']; ?></td>
-                        <td><?php echo $p['dosage']; ?></td>
-                        <td><span class="badge bg-info"><?php echo $p['seuil_alerte']; ?></span></td>
-                        <td>
-                            <a href="#" class="btn btn-sm btn-warning">Modifier</a>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <table class="table table-bordered bg-white shadow-sm">
+        <thead class="table-light">
+            <tr><th>Nom</th><th>Forme</th><th>Dosage</th><th>Stock Global</th></tr>
+        </thead>
+        <tbody>
+            <?php foreach($produits as $p): ?>
+                <tr>
+                    <td><?= $p['nom_medicament'] ?></td>
+                    <td><?= $p['forme'] ?></td>
+                    <td><?= $p['dosage'] ?></td>
+                    <td><span class="badge bg-info text-dark"><?= $p['stock_total'] ?></span></td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
 </div>
 
-<div class="modal fade" id="modalAjout" tabindex="-1">
+<?php if($isAdmin): ?>
+<div class="modal fade" id="modalProduit" tabindex="-1">
   <div class="modal-dialog">
     <form method="POST" class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Nouveau Médicament</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
+      <div class="modal-header"><h5>Ajouter une référence</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <div class="mb-3">
-            <label>Désignation</label>
-            <input type="text" name="nom_medicament" class="form-control" placeholder="ex: Paracétamol" required>
-        </div>
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label>Forme</label>
-                <input type="text" name="forme" class="form-control" placeholder="ex: Comprimé">
-            </div>
-            <div class="col-md-6 mb-3">
-                <label>Dosage</label>
-                <input type="text" name="dosage" class="form-control" placeholder="ex: 500mg">
-            </div>
-        </div>
-        <div class="mb-3">
-            <label>Seuil d'alerte (Stock minimum)</label>
-            <input type="number" name="seuil_alerte" class="form-control" value="10">
-        </div>
+          <input type="text" name="nom" class="form-control mb-2" placeholder="Nom du médicament" required>
+          <input type="text" name="forme" class="form-control mb-2" placeholder="Forme (Comprimé, Sirop...)" required>
+          <input type="text" name="dosage" class="form-control mb-2" placeholder="Dosage (500mg, 10ml...)" required>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-        <button type="submit" name="btn_ajouter" class="btn btn-success">Enregistrer le produit</button>
-      </div>
+      <div class="modal-footer"><button type="submit" name="btn_ajouter" class="btn btn-success">Enregistrer</button></div>
     </form>
   </div>
 </div>
+<?php endif; ?>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<?php include '../includes/footer.php'; ?>

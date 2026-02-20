@@ -1,6 +1,9 @@
 <?php
 // 1. Inclusion des dépendances
+
 require_once('../config/db.php');
+session_start();
+if (!isset($_SESSION['user_id'])) { header("Location: ../index.php"); exit(); }
 include('../includes/header.php');
 
 $message = "";
@@ -11,7 +14,7 @@ if (isset($_POST['valider_sortie'])) {
     $point_vente = $_POST['point_vente'];
     $quantite_demandee = intval($_POST['quantite_sortie']);
     $prix_vente = $_POST['prix_vente'];
-    $id_user = 1; // À lier à la session utilisateur plus tard
+    $id_user = $_SESSION['user_id'];
 
     try {
         $pdo->beginTransaction();
@@ -49,6 +52,13 @@ if (isset($_POST['valider_sortie'])) {
                 ':id_lot' => $id_lot
             ]);
 
+            // ÉTAPE E : Réduire également le stock total du produit parent
+            if (!empty($lot['id_produit'])) {
+                $sqlProd = "UPDATE produits SET stock_total = stock_total - :qte WHERE id_produit = :idp";
+                $stmtProd = $pdo->prepare($sqlProd);
+                $stmtProd->execute([':qte' => $quantite_demandee, ':idp' => $lot['id_produit']]);
+            }
+
             $pdo->commit();
             $message = "<div class='alert alert-success'>Sortie enregistrée et stock mis à jour.</div>";
         } else {
@@ -70,6 +80,15 @@ $sqlLots = "SELECT l.id_lot, l.num_lot, l.quantite_actuelle, l.date_expiration, 
             WHERE l.quantite_actuelle > 0 
             ORDER BY l.date_expiration ASC";
 $lotsDisponibles = $pdo->query($sqlLots)->fetchAll();
+
+// Récupération des sorties enregistrées (pour affichage historique)
+$sqlSorties = "SELECT s.*, l.num_lot, p.nom_medicament, u.nom_complet AS utilisateur
+               FROM sorties s
+               JOIN stock_lots l ON s.id_lot = l.id_lot
+               JOIN produits p ON l.id_produit = p.id_produit
+               LEFT JOIN utilisateurs u ON s.id_user = u.id_user
+               ORDER BY s.id_sortie DESC";
+$sorties = $pdo->query($sqlSorties)->fetchAll();
 ?>
 
 <div class="container mt-4">
@@ -94,6 +113,8 @@ $lotsDisponibles = $pdo->query($sqlLots)->fetchAll();
                         <small class="text-muted">Note : Les lots sont triés par date d'expiration (FIFO).</small>
                     </div>
                 </div>
+    
+                    
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
@@ -116,8 +137,48 @@ $lotsDisponibles = $pdo->query($sqlLots)->fetchAll();
                     </button>
                 </div>
             </form>
+            
         </div>
+        
     </div>
+    <div class="card mt-4 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">Historique des sorties</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Médicament</th>
+                                            <th>Lot</th>
+                                            <th>Point de Vente</th>
+                                            <th>Qté</th>
+                                            <th>Prix U.</th>
+                                            <th>Total</th>
+                                            <th>Utilisateur</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php if(!empty($sorties)): foreach($sorties as $s): ?>
+                                            <tr>
+                                                <td><?= $s['date_sortie'] ?></td>
+                                                <td><?= $s['nom_medicament'] ?></td>
+                                                <td><?= $s['num_lot'] ?></td>
+                                                <td><?= $s['nom_point_vente'] ?></td>
+                                                <td><?= $s['quantite_sortie'] ?></td>
+                                                <td><?= $s['prix_vente_unitaire'] ?></td>
+                                                <td><?= $s['total_prix'] ?></td>
+                                                <td><?= isset($s['utilisateur']) && $s['utilisateur'] ? $s['utilisateur'] : '—' ?></td>
+                                            </tr>
+                                        <?php endforeach; else: ?>
+                                            <tr><td colspan="8" class="text-center text-muted">Aucune sortie enregistrée.</td></tr>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
 </div>
+
 
 <?php include('../includes/footer.php'); ?>

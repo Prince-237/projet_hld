@@ -1,5 +1,5 @@
 <?php
-require_once 'config/db.php';
+require_once '../config/db.php';
 session_start();
 
 if (!isset($_SESSION['user_id'])) { header("Location: /index.php"); exit(); }
@@ -19,7 +19,7 @@ $nb_rupture = $pdo->query("SELECT COUNT(*) FROM produits WHERE stock_total = 0")
 $nb_perime = $pdo->query("SELECT COUNT(*) FROM stock_lots WHERE date_expiration <= CURRENT_DATE AND quantite_actuelle > 0")->fetchColumn();
 ?>
 
-<?php include 'includes/header.php'; ?>
+<?php include '../includes/header.php'; ?>
 
 <div class="container mt-4">
     <h2 class="mb-4">Tableau de Bord - Hôpital Laquintinie</h2>
@@ -93,4 +93,4 @@ $nb_perime = $pdo->query("SELECT COUNT(*) FROM stock_lots WHERE date_expiration 
     </div>
 </div>
 
-<?php include 'includes/footer.php'; ?>
+<?php include '../includes/footer.php'; ?>
