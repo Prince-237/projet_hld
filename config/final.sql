@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS produits (
     nom_medicament VARCHAR(150) NOT NULL,
     forme VARCHAR(50), 
     dosage VARCHAR(50),
+    prix_unitaire DECIMAL(10,2),
     seuil_alerte INT,
     stock_total INT
 ) ENGINE=InnoDB;
