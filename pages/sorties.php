@@ -20,12 +20,19 @@ if (isset($_POST['valider_sortie'])) {
         $pdo->beginTransaction();
 
         // Etape A : verifier si le stock disponible dans ce lot est suffisant
-        $checkSql = "SELECT quantite_actuelle, id_produit FROM stock_lots WHERE id_lot = :id_lot FOR UPDATE";
+        // On récupère aussi le prix d'achat TTC pour pouvoir calculer le prix de vente (+70%) côté serveur
+        $checkSql = "SELECT quantite_actuelle, id_produit, prix_achat_ttc FROM stock_lots WHERE id_lot = :id_lot FOR UPDATE";
         $stmtCheck = $pdo->prepare($checkSql);
         $stmtCheck->execute([':id_lot' => $id_lot]);
         $lot = $stmtCheck->fetch();
 
         if ($lot && $lot['quantite_actuelle'] >= $quantite_demandee) {
+            // Calculer le prix de vente à partir du prix d'achat (+70%) si disponible
+            if (!empty($lot['prix_achat_ttc'])) {
+                $prix_vente_calc = round(floatval($lot['prix_achat_ttc']) * 1.70, 2);
+                $prix_vente = $prix_vente_calc; // on force le prix de sortie pour assurer 70% de marge
+            }
+
             // Etape B : calculer le montant total de la sortie
             $total_prix = $quantite_demandee * $prix_vente;
 
@@ -139,7 +146,7 @@ if ($isAdmin && isset($_POST['btn_delete_sortie'])) {
 }
 
 // 3. Recuperation des lots disponibles
-$sqlLots = "SELECT l.id_lot, l.num_lot, l.quantite_actuelle, l.date_expiration, p.nom_medicament
+$sqlLots = "SELECT l.id_lot, l.num_lot, l.quantite_actuelle, l.date_expiration, l.prix_achat_ttc, p.nom_medicament
             FROM stock_lots l
             JOIN produits p ON l.id_produit = p.id_produit
             WHERE l.quantite_actuelle > 0
@@ -168,10 +175,10 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
                 <div class="row">
                     <div class="col-md-12 mb-3">
                         <label class="form-label font-weight-bold">Selectionner le Lot (Medicament - Lot - Quantite dispo)</label>
-                        <select name="id_lot" class="form-select" required>
+                        <select name="id_lot" id="select_lot" class="form-select" required>
                             <option value="">-- Choisir un lot --</option>
                             <?php foreach($lotsDisponibles as $l): ?>
-                                <option value="<?= $l['id_lot'] ?>">
+                                <option value="<?= $l['id_lot'] ?>" data-prix="<?= $l['prix_achat_ttc'] ?? 0 ?>">
                                     <?= strtoupper($l['nom_medicament']) ?> | Lot: <?= $l['num_lot'] ?> | Dispo: <?= $l['quantite_actuelle'] ?> (Exp: <?= $l['date_expiration'] ?>)
                                 </option>
                             <?php endforeach; ?>
@@ -190,8 +197,8 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
                         <input type="number" name="quantite_sortie" class="form-control" min="1" required>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <label class="form-label">Prix de vente unitaire</label>
-                        <input type="number" step="0.01" name="prix_vente" class="form-control" required>
+                        <label class="form-label">Prix de vente unitaire <small class="text-muted">(+70%)</small></label>
+                        <input type="number" step="0.01" name="prix_vente" id="prix_vente" class="form-control" readonly>
                     </div>
                 </div>
 
@@ -217,7 +224,7 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
                             <th>Lot</th>
                             <th>Point de Vente</th>
                             <th>Qte</th>
-                            <th>Prix U.</th>
+                            <th>Prix Unitaire de Vente</th>
                             <th>Total</th>
                             <th>Utilisateur</th>
                             <th>Action</th>
@@ -289,6 +296,20 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
 <?php if($isAdmin): ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Calcul automatique du prix de vente avec 70% de markup
+    var selectLot = document.getElementById('select_lot');
+    var prixVenteInput = document.getElementById('prix_vente');
+    
+    if (selectLot && prixVenteInput) {
+        selectLot.addEventListener('change', function() {
+            var option = selectLot.options[selectLot.selectedIndex];
+            var prixAchat = parseFloat(option.getAttribute('data-prix')) || 0;
+            var prixVente = prixAchat * 1.70; // +70%
+            prixVenteInput.value = prixVente.toFixed(2);
+        });
+    }
+
+    // Gestion du modal d'edition
     var modal = document.getElementById('modalEditSortie');
     if (!modal) return;
     modal.addEventListener('show.bs.modal', function (event) {
@@ -301,5 +322,13 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 <?php endif; ?>
+
+<?php include('../includes/footer.php'); ?>
+                           </table>
+                            </div>
+                        </div>
+                    </div>
+</div>
+
 
 <?php include('../includes/footer.php'); ?>

@@ -30,7 +30,7 @@ function isActive($page) {
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm mb-4">
     <div class="container">
-        <a class="navbar-brand" href="<?= $root_prefix ?>dashboard.php">LAQUINTINIE</a>
+        <a class="navbar-brand" href="<?= $root_prefix ?>pages/dashboard.php">LAQUINTINIE</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
         </button>
@@ -44,7 +44,7 @@ function isActive($page) {
                     <a class="nav-link <?= ($current_page == 'produits.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/produits.php">Medicaments</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link <?= ($current_page == 'entrees.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/entrees.php">Entrees/Lots</a>
+                    <a class="nav-link <?= ($current_page == 'entrees.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/entrees.php">Entrees</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link <?= ($current_page == 'sorties.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/sorties.php">Sorties</a>

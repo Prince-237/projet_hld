@@ -12,11 +12,12 @@ if ($isAdmin && isset($_POST['btn_lot'])) {
     $qte = $_POST['qte'];
     $num_lot = $_POST['num_lot'];
     $exp = $_POST['exp'];
+    $prix_achat_ttc = isset($_POST['prix_achat_ttc']) ? floatval($_POST['prix_achat_ttc']) : null;
 
     $pdo->beginTransaction();
-    // Insertion du lot
-    $stmt = $pdo->prepare("INSERT INTO stock_lots (id_produit, id_fournisseur, num_lot, quantite_initiale, quantite_actuelle, date_expiration, id_user) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$id_p, $id_f, $num_lot, $qte, $qte, $exp, $_SESSION['user_id']]);
+    // Insertion du lot (enregistre aussi le prix d'achat TTC si fourni)
+    $stmt = $pdo->prepare("INSERT INTO stock_lots (id_produit, id_fournisseur, num_lot, quantite_initiale, quantite_actuelle, date_expiration, prix_achat_ttc, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$id_p, $id_f, $num_lot, $qte, $qte, $exp, $prix_achat_ttc, $_SESSION['user_id']]);
     // Mise a jour stock total
     $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total + ? WHERE id_produit = ?");
     $stmt->execute([$qte, $id_p]);
@@ -31,6 +32,7 @@ if ($isAdmin && isset($_POST['btn_update_lot'])) {
     $qte = (int)$_POST['qte'];
     $num_lot = htmlspecialchars($_POST['num_lot']);
     $exp = $_POST['exp'];
+    $prix_achat_ttc = isset($_POST['prix_achat_ttc']) ? floatval($_POST['prix_achat_ttc']) : null;
 
     $stmt = $pdo->prepare("SELECT id_produit, quantite_initiale, quantite_actuelle FROM stock_lots WHERE id_lot = ?");
     $stmt->execute([$id_lot]);
@@ -47,8 +49,8 @@ if ($isAdmin && isset($_POST['btn_update_lot'])) {
             try {
                 $pdo->beginTransaction();
 
-                $stmt = $pdo->prepare("UPDATE stock_lots SET id_produit = ?, id_fournisseur = ?, num_lot = ?, quantite_initiale = ?, quantite_actuelle = ?, date_expiration = ? WHERE id_lot = ?");
-                $stmt->execute([$id_p, $id_f, $num_lot, $qte, $new_actuelle, $exp, $id_lot]);
+                $stmt = $pdo->prepare("UPDATE stock_lots SET id_produit = ?, id_fournisseur = ?, num_lot = ?, quantite_initiale = ?, quantite_actuelle = ?, date_expiration = ?, prix_achat_ttc = ? WHERE id_lot = ?");
+                $stmt->execute([$id_p, $id_f, $num_lot, $qte, $new_actuelle, $exp, $prix_achat_ttc, $id_lot]);
 
                 if ((int)$lot['id_produit'] !== $id_p) {
                     $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total - ? WHERE id_produit = ?");
@@ -120,6 +122,7 @@ include '../includes/header.php';
                 <div class="col-md-2"><input type="number" name="qte" class="form-control" placeholder="Qte" required></div>
                 <div class="col-md-2"><input type="text" name="num_lot" class="form-control" placeholder="No Lot" required></div>
                 <div class="col-md-2"><input type="date" name="exp" class="form-control" required></div>
+                <div class="col-md-2"><input type="number" step="0.01" name="prix_achat_ttc" class="form-control" placeholder="Prix achat TTC" required></div>
                 <div class="col-12"><button type="submit" name="btn_lot" class="btn btn-primary w-100">Valider l'entree</button></div>
             </form>
         </div>
@@ -151,8 +154,8 @@ include '../includes/header.php';
                     <td><?= $e['nom_societe'] ?></td>
                     <td><?= $e['quantite_initiale'] ?></td>
                     <td><?= $e['date_expiration'] ?></td>
-                    <td><?= isset($e['prix_achat_ttc']) && $e['prix_achat_ttc'] !== null ? $e['prix_achat_ttc'] : '-' ?></td>
-                    <td><?php if(isset($e['prix_achat_ttc']) && $e['prix_achat_ttc'] !== null) { echo $e['prix_achat_ttc'] * $e['quantite_initiale']; } else { echo '-'; } ?></td>
+                    <td><?= isset($e['prix_achat_ttc']) && $e['prix_achat_ttc'] ? $e['prix_achat_ttc'] : '-' ?></td>
+                    <td><?= isset($e['prix_achat_ttc']) && $e['prix_achat_ttc'] ? number_format($e['prix_achat_ttc'] * $e['quantite_initiale'], 2) : '-' ?></td>
                     <td><?= isset($e['utilisateur']) && $e['utilisateur'] ? $e['utilisateur'] : '-' ?></td>
                     <td class="text-nowrap">
                         <?php if($isAdmin): ?>
@@ -166,6 +169,7 @@ include '../includes/header.php';
                                 data-num="<?= htmlspecialchars($e['num_lot']) ?>"
                                 data-qte="<?= $e['quantite_initiale'] ?>"
                                 data-exp="<?= $e['date_expiration'] ?>"
+                                data-prix="<?= isset($e['prix_achat_ttc']) ? $e['prix_achat_ttc'] : 0 ?>"
                                 title="Modifier"
                             >
                                 <i class="bi bi-pencil"></i>
@@ -207,7 +211,8 @@ include '../includes/header.php';
           </div>
           <input type="text" name="num_lot" id="edit_num_lot" class="form-control mb-2" placeholder="No Lot" required>
           <input type="number" name="qte" id="edit_qte" class="form-control mb-2" placeholder="Qte" required>
-          <input type="date" name="exp" id="edit_exp" class="form-control" required>
+          <input type="date" name="exp" id="edit_exp" class="form-control mb-2" required>
+          <input type="number" step="0.01" name="prix_achat_ttc" id="edit_prix" class="form-control" placeholder="Prix achat TTC">
       </div>
       <div class="modal-footer"><button type="submit" name="btn_update_lot" class="btn btn-success">Mettre a jour</button></div>
     </form>
@@ -228,6 +233,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('edit_num_lot').value = button.getAttribute('data-num');
         document.getElementById('edit_qte').value = button.getAttribute('data-qte');
         document.getElementById('edit_exp').value = button.getAttribute('data-exp');
+        var prix = button.getAttribute('data-prix');
+        if(document.getElementById('edit_prix')) document.getElementById('edit_prix').value = prix;
     });
 });
 </script>
