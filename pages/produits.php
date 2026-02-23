@@ -75,8 +75,17 @@ include '../includes/header.php';
             </tr>
         </thead>
         <tbody>
-            <?php foreach($produits as $p): ?>
-                <tr>
+            <?php foreach($produits as $p): 
+                $stock = (int)$p['stock_total'];
+                $seuil = isset($p['seuil_alerte']) ? (int)$p['seuil_alerte'] : 0;
+                $rowClass = '';
+                if ($stock === 0) {
+                    $rowClass = 'table-danger text-white';
+                } elseif ($stock <= $seuil) {
+                    $rowClass = 'table-warning';
+                }
+            ?>
+                <tr class="<?= $rowClass ?>">
                     <td><?= $p['nom_medicament'] ?></td>
                     <td><?= $p['forme'] ?></td>
                     <td><?= $p['dosage'] ?></td>

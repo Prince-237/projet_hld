@@ -17,6 +17,8 @@ $nb_rupture = $pdo->query("SELECT COUNT(*) FROM produits WHERE stock_total = 0")
 
 // D. Produits périmés (On compare la date d'aujourd'hui avec date_expiration dans stock_lots)
 $nb_perime = $pdo->query("SELECT COUNT(*) FROM stock_lots WHERE date_expiration <= CURRENT_DATE AND quantite_actuelle > 0")->fetchColumn();
+// Récupère des lots périmés (détails pour affichage)
+$expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM stock_lots l JOIN produits p ON l.id_produit = p.id_produit LEFT JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur WHERE l.date_expiration <= CURRENT_DATE AND l.quantite_actuelle > 0 ORDER BY l.date_expiration ASC LIMIT 10")->fetchAll();
 ?>
 
 <?php include '../includes/header.php'; ?>
@@ -87,6 +89,36 @@ $nb_perime = $pdo->query("SELECT COUNT(*) FROM stock_lots WHERE date_expiration 
                               </tr>";
                     }
                     ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <h4>Lots périmés</h4>
+            <table class="table table-sm table-striped bg-white shadow-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Médicament</th>
+                        <th>Lot</th>
+                        <th>Quantité restante</th>
+                        <th>Expiration</th>
+                        <th>Fournisseur</th>
+                        <th>Date entrée</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($expired_lots as $lot): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($lot['nom_medicament']) ?></td>
+                            <td><?= htmlspecialchars($lot['num_lot']) ?></td>
+                            <td><?= $lot['quantite_actuelle'] ?></td>
+                            <td><?= $lot['date_expiration'] ?></td>
+                            <td><?= isset($lot['nom_societe']) ? htmlspecialchars($lot['nom_societe']) : '-' ?></td>
+                            <td><?= $lot['date_enregistrement'] ?></td>
+                        </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
