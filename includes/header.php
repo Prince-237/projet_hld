@@ -1,4 +1,4 @@
-﻿<?php
+﻿﻿<?php
 // Récupère le fichier courant pour marquer le menu actif
 $current_page = basename($_SERVER['PHP_SELF']);
 $current_dir = basename(dirname($_SERVER['PHP_SELF']));
@@ -55,6 +55,9 @@ function isActive($page) {
                 </li>
                 <li class="nav-item">
                     <a class="nav-link <?= ($current_page == 'fournisseurs.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/fournisseurs.php">Fournisseurs</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link <?= ($current_page == 'points_vente.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/points_vente.php">Points de Vente</a>
                 </li>
                 <?php endif; ?>
             </ul>

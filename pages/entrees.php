@@ -13,14 +13,20 @@ if ($isAdmin && isset($_POST['btn_lot'])) {
     $num_lot = $_POST['num_lot'];
     $exp = $_POST['exp'];
     $prix_achat_ttc = isset($_POST['prix_achat_ttc']) ? floatval($_POST['prix_achat_ttc']) : null;
+    $marge = isset($_POST['marge_pourcentage']) && $_POST['marge_pourcentage'] !== '' ? floatval($_POST['marge_pourcentage']) : null;
 
     $pdo->beginTransaction();
     // Insertion du lot (enregistre aussi le prix d'achat TTC si fourni)
     $stmt = $pdo->prepare("INSERT INTO stock_lots (id_produit, id_fournisseur, num_lot, quantite_initiale, quantite_actuelle, date_expiration, prix_achat_ttc, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
     $stmt->execute([$id_p, $id_f, $num_lot, $qte, $qte, $exp, $prix_achat_ttc, $_SESSION['user_id']]);
     // Mise a jour stock total
-    $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total + ? WHERE id_produit = ?");
-    $stmt->execute([$qte, $id_p]);
+    if ($marge !== null) {
+        $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total + ?, marge_pourcentage = ? WHERE id_produit = ?");
+        $stmt->execute([$qte, $marge, $id_p]);
+    } else {
+        $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total + ? WHERE id_produit = ?");
+        $stmt->execute([$qte, $id_p]);
+    }
     $pdo->commit();
     header("Location: entrees.php"); exit();
 }
@@ -104,25 +110,26 @@ if ($isAdmin && isset($_POST['btn_delete_lot'])) {
     }
 }
 
-$entrees = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe, u.nom_complet AS utilisateur FROM stock_lots l JOIN produits p ON l.id_produit = p.id_produit JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur LEFT JOIN utilisateurs u ON l.id_user = u.id_user ORDER BY l.id_lot DESC")->fetchAll();
+$entrees = $pdo->query("SELECT l.*, p.nom_medicament, p.marge_pourcentage, f.nom_societe, u.nom_complet AS utilisateur FROM stock_lots l JOIN produits p ON l.id_produit = p.id_produit JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur LEFT JOIN utilisateurs u ON l.id_user = u.id_user ORDER BY l.id_lot DESC")->fetchAll();
 $prods = $pdo->query("SELECT * FROM produits")->fetchAll();
 $fours = $pdo->query("SELECT * FROM fournisseurs")->fetchAll();
 
 include '../includes/header.php';
 ?>
 
-<div class="container mt-4">
+<div class="container mt-4 shadow">
     <h2>Entrees en Stock (Lots)</h2>
     <?php if($isAdmin): ?>
-        <div class="card p-3 mb-4 shadow-sm border-primary">
+        <div class="card p-3 mb-4">
             <h5>Enregistrer une livraison</h5>
             <form method="POST" class="row g-2">
-                <div class="col-md-3"><select name="id_p" class="form-select" required><?php foreach($prods as $p) echo "<option value='{$p['id_produit']}'>{$p['nom_medicament']}</option>"; ?></select></div>
-                <div class="col-md-3"><select name="id_f" class="form-select" required><?php foreach($fours as $f) echo "<option value='{$f['id_fournisseur']}'>{$f['nom_societe']}</option>"; ?></select></div>
+                <div class="col-md-3"><select name="id_p" id="select_produit_entree" class="form-select" required><option value="">-- Choisir produit --</option><?php foreach($prods as $p) echo "<option value='{$p['id_produit']}' data-default-prix='{$p['prix_unitaire']}' data-marge='{$p['marge_pourcentage']}'>{$p['nom_medicament']}</option>"; ?></select></div>
+                <div class="col-md-3"><select name="id_f" class="form-select" required><option value="">-- Choisir fournisseur --</option><?php foreach($fours as $f) echo "<option value='{$f['id_fournisseur']}'>{$f['nom_societe']}</option>"; ?></select></div>
                 <div class="col-md-2"><input type="number" name="qte" class="form-control" placeholder="Qte" required></div>
                 <div class="col-md-2"><input type="text" name="num_lot" class="form-control" placeholder="No Lot" required></div>
                 <div class="col-md-2"><input type="date" name="exp" class="form-control" required></div>
-                <div class="col-md-2"><input type="number" step="0.01" name="prix_achat_ttc" class="form-control" placeholder="Prix achat TTC" required></div>
+                <div class="col-md-2"><input type="number" step="0.01" name="prix_achat_ttc" id="input_prix_achat" class="form-control" placeholder="Prix achat TTC" required></div>
+                <div class="col-md-2"><input type="number" step="0.01" name="marge_pourcentage" id="input_marge" class="form-control" placeholder="Profit Margin %"></div>
                 <div class="col-12"><button type="submit" name="btn_lot" class="btn btn-primary w-100">Valider l'entree</button></div>
             </form>
         </div>
@@ -140,6 +147,7 @@ include '../includes/header.php';
                 <th>Qte</th>
                 <th>Expiration</th>
                 <th>Prix unitaire</th>
+                <th>Profit Margin %</th>
                 <th>Total</th>
                 <th>Utilisateur</th>
                 <th>Action</th>
@@ -147,7 +155,8 @@ include '../includes/header.php';
         </thead>
         <tbody>
             <?php foreach($entrees as $e): ?>
-                <tr>
+                <?php $isExpired = strtotime($e['date_expiration']) < strtotime(date('Y-m-d')); ?>
+                <tr class="<?= $isExpired ? 'table-danger' : '' ?>">
                     <td><?= $e['date_enregistrement'] ?></td>
                     <td><?= $e['nom_medicament'] ?></td>
                     <td><?= $e['num_lot'] ?></td>
@@ -155,6 +164,7 @@ include '../includes/header.php';
                     <td><?= $e['quantite_initiale'] ?></td>
                     <td><?= $e['date_expiration'] ?></td>
                     <td><?= isset($e['prix_achat_ttc']) && $e['prix_achat_ttc'] ? $e['prix_achat_ttc'] : '-' ?></td>
+                    <td><?= isset($e['marge_pourcentage']) ? $e['marge_pourcentage'] . '%' : '-' ?></td>
                     <td><?= isset($e['prix_achat_ttc']) && $e['prix_achat_ttc'] ? number_format($e['prix_achat_ttc'] * $e['quantite_initiale'], 2) : '-' ?></td>
                     <td><?= isset($e['utilisateur']) && $e['utilisateur'] ? $e['utilisateur'] : '-' ?></td>
                     <td class="text-nowrap">
@@ -236,6 +246,26 @@ document.addEventListener('DOMContentLoaded', function() {
         var prix = button.getAttribute('data-prix');
         if(document.getElementById('edit_prix')) document.getElementById('edit_prix').value = prix;
     });
+});
+
+// Script pour remplir automatiquement le prix d'achat par défaut lors de la sélection du produit
+document.addEventListener('DOMContentLoaded', function() {
+    var selectProd = document.getElementById('select_produit_entree');
+    var inputPrix = document.getElementById('input_prix_achat');
+    var inputMarge = document.getElementById('input_marge');
+    if(selectProd) {
+        selectProd.addEventListener('change', function() {
+            var option = selectProd.options[selectProd.selectedIndex];
+            var defaultPrix = option.getAttribute('data-default-prix');
+            var defaultMarge = option.getAttribute('data-marge');
+            if(defaultPrix && inputPrix) {
+                inputPrix.value = defaultPrix;
+            }
+            if(defaultMarge && inputMarge) {
+                inputMarge.value = defaultMarge;
+            }
+        });
+    }
 });
 </script>
 <?php endif; ?>

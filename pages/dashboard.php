@@ -48,7 +48,7 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
         <div class="col-md-3">
             <div class="card bg-danger text-white shadow">
                 <div class="card-body">
-                    <h6>Ruptures de stock</h6>
+                    <h6>Ruptures</h6>
                     <h2><?= $nb_rupture ?></h2>
                 </div>
             </div>
