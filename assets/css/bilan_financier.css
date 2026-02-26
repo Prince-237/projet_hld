@@ -1,0 +1,5 @@
+/* assets/css/bilan_financier.css */
+.bilan-table { width:100%; border-collapse:collapse; margin-top:12px; }
+.bilan-table th, .bilan-table td { border:1px solid #ddd; padding:8px; text-align:right; }
+.bilan-table th:first-child, .bilan-table td:first-child { text-align:left; }
+.filter-form { display:flex; gap:12px; align-items:center; margin-bottom:10px; }
