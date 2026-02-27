@@ -6,84 +6,46 @@ $isAdmin = ($_SESSION['role'] === 'admin');
 
 $message = '';
 
+// --- ACTION : ENREGISTRER UN NOUVEAU LOT ---
 if ($isAdmin && isset($_POST['btn_lot'])) {
     $id_p = $_POST['id_p'];
     $id_f = $_POST['id_f'];
     $qte = $_POST['qte'];
     $num_lot = $_POST['num_lot'];
     $exp = $_POST['exp'];
-    $prix_achat_ttc = isset($_POST['prix_achat_ttc']) ? floatval($_POST['prix_achat_ttc']) : null;
+    $source = $_POST['source_provenance'];
+    
+    // Sécurité serveur : Si Don, le prix est forcé à 0
+    $prix_achat_ttc = ($source === 'Don') ? 0 : (isset($_POST['prix_achat_ttc']) ? floatval($_POST['prix_achat_ttc']) : 0);
     $marge = isset($_POST['marge_pourcentage']) && $_POST['marge_pourcentage'] !== '' ? floatval($_POST['marge_pourcentage']) : null;
 
-    $pdo->beginTransaction();
-    // Insertion du lot (enregistre aussi le prix d'achat TTC si fourni)
-    $stmt = $pdo->prepare("INSERT INTO stock_lots (id_produit, id_fournisseur, num_lot, quantite_initiale, quantite_actuelle, date_expiration, prix_achat_ttc, id_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$id_p, $id_f, $num_lot, $qte, $qte, $exp, $prix_achat_ttc, $_SESSION['user_id']]);
-    // Mise a jour stock total
-    if ($marge !== null) {
-        $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total + ?, marge_pourcentage = ? WHERE id_produit = ?");
-        $stmt->execute([$qte, $marge, $id_p]);
-    } else {
-        $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total + ? WHERE id_produit = ?");
-        $stmt->execute([$qte, $id_p]);
-    }
-    $pdo->commit();
-    header("Location: entrees.php"); exit();
-}
-
-if ($isAdmin && isset($_POST['btn_update_lot'])) {
-    $id_lot = (int)$_POST['id_lot'];
-    $id_p = (int)$_POST['id_p'];
-    $id_f = (int)$_POST['id_f'];
-    $qte = (int)$_POST['qte'];
-    $num_lot = htmlspecialchars($_POST['num_lot']);
-    $exp = $_POST['exp'];
-    $prix_achat_ttc = isset($_POST['prix_achat_ttc']) ? floatval($_POST['prix_achat_ttc']) : null;
-
-    $stmt = $pdo->prepare("SELECT id_produit, quantite_initiale, quantite_actuelle FROM stock_lots WHERE id_lot = ?");
-    $stmt->execute([$id_lot]);
-    $lot = $stmt->fetch();
-
-    if ($lot) {
-        $used = $lot['quantite_initiale'] - $lot['quantite_actuelle'];
-        if ($qte < $used) {
-            $message = "<div class='alert alert-danger'>Quantite invalide : deja sortie = {$used}.</div>";
+    try {
+        $pdo->beginTransaction();
+        
+        // Insertion du lot avec la source
+        $stmt = $pdo->prepare("INSERT INTO stock_lots (id_produit, id_fournisseur, num_lot, quantite_initiale, quantite_actuelle, date_expiration, prix_achat_ttc, id_user, source_provenance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$id_p, $id_f, $num_lot, $qte, $qte, $exp, $prix_achat_ttc, $_SESSION['user_id'], $source]);
+        
+        // Mise à jour du stock total du produit
+        if ($marge !== null) {
+            $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total + ?, marge_pourcentage = ? WHERE id_produit = ?");
+            $stmt->execute([$qte, $marge, $id_p]);
         } else {
-            $new_actuelle = $qte - $used;
-            $old_actuelle = $lot['quantite_actuelle'];
-
-            try {
-                $pdo->beginTransaction();
-
-                $stmt = $pdo->prepare("UPDATE stock_lots SET id_produit = ?, id_fournisseur = ?, num_lot = ?, quantite_initiale = ?, quantite_actuelle = ?, date_expiration = ?, prix_achat_ttc = ? WHERE id_lot = ?");
-                $stmt->execute([$id_p, $id_f, $num_lot, $qte, $new_actuelle, $exp, $prix_achat_ttc, $id_lot]);
-
-                if ((int)$lot['id_produit'] !== $id_p) {
-                    $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total - ? WHERE id_produit = ?");
-                    $stmt->execute([$old_actuelle, $lot['id_produit']]);
-                    $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total + ? WHERE id_produit = ?");
-                    $stmt->execute([$new_actuelle, $id_p]);
-                } else {
-                    $delta = $new_actuelle - $old_actuelle;
-                    if ($delta !== 0) {
-                        $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total + ? WHERE id_produit = ?");
-                        $stmt->execute([$delta, $id_p]);
-                    }
-                }
-
-                $pdo->commit();
-                $message = "<div class='alert alert-success'>Lot mis a jour.</div>";
-            } catch (Exception $e) {
-                $pdo->rollBack();
-                $message = "<div class='alert alert-danger'>Erreur : " . $e->getMessage() . "</div>";
-            }
+            $stmt = $pdo->prepare("UPDATE produits SET stock_total = stock_total + ? WHERE id_produit = ?");
+            $stmt->execute([$qte, $id_p]);
         }
+        
+        $pdo->commit();
+        header("Location: entrees.php?success=1"); exit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $message = "<div class='alert alert-danger'>Erreur : " . $e->getMessage() . "</div>";
     }
 }
 
+// --- ACTION : SUPPRIMER UN LOT ---
 if ($isAdmin && isset($_POST['btn_delete_lot'])) {
     $id_lot = (int)$_POST['id_lot'];
-
     $stmt = $pdo->prepare("SELECT id_produit, quantite_actuelle FROM stock_lots WHERE id_lot = ?");
     $stmt->execute([$id_lot]);
     $lot = $stmt->fetch();
@@ -93,7 +55,7 @@ if ($isAdmin && isset($_POST['btn_delete_lot'])) {
     $hasSorties = $checkSorties->fetchColumn() > 0;
 
     if ($hasSorties) {
-        $message = "<div class='alert alert-danger'>Suppression impossible : ce lot a des sorties associees.</div>";
+        $message = "<div class='alert alert-danger'>Suppression impossible : ce lot a des sorties associées.</div>";
     } else if ($lot) {
         try {
             $pdo->beginTransaction();
@@ -102,172 +64,184 @@ if ($isAdmin && isset($_POST['btn_delete_lot'])) {
             $stmt = $pdo->prepare("DELETE FROM stock_lots WHERE id_lot = ?");
             $stmt->execute([$id_lot]);
             $pdo->commit();
-            $message = "<div class='alert alert-success'>Lot supprime.</div>";
+            $message = "<div class='alert alert-success'>Lot supprimé avec succès.</div>";
         } catch (Exception $e) {
             $pdo->rollBack();
-            $message = "<div class='alert alert-danger'>Erreur : " . $e->getMessage() . "</div>";
+            $message = "<div class='alert alert-danger'>Erreur lors de la suppression.</div>";
         }
     }
 }
 
-$entrees = $pdo->query("SELECT l.*, p.nom_medicament, p.marge_pourcentage, f.nom_societe, u.nom_complet AS utilisateur FROM stock_lots l JOIN produits p ON l.id_produit = p.id_produit JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur LEFT JOIN utilisateurs u ON l.id_user = u.id_user ORDER BY l.id_lot DESC")->fetchAll();
-$prods = $pdo->query("SELECT * FROM produits")->fetchAll();
-$fours = $pdo->query("SELECT * FROM fournisseurs")->fetchAll();
+// Récupération des données pour l'affichage
+$entrees = $pdo->query("SELECT l.*, p.nom_medicament, p.marge_pourcentage, f.nom_societe, u.nom_complet AS utilisateur 
+                        FROM stock_lots l 
+                        JOIN produits p ON l.id_produit = p.id_produit 
+                        JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur 
+                        LEFT JOIN utilisateurs u ON l.id_user = u.id_user 
+                        ORDER BY l.id_lot DESC")->fetchAll();
+
+$prods = $pdo->query("SELECT * FROM produits ORDER BY nom_medicament ASC")->fetchAll();
+$fours = $pdo->query("SELECT * FROM fournisseurs ORDER BY nom_societe ASC")->fetchAll();
 
 include '../includes/header.php';
 ?>
 
-<div class="container mt-4 shadow">
-    <h2>Entrees en Stock (Lots)</h2>
+<div class="container-fluid mt-4">
+    <h2 class="mb-4">📦 Gestion des Entrées en Stock (Lots)</h2>
+    
+    <?php if($message): ?><?= $message ?><?php endif; ?>
+
     <?php if($isAdmin): ?>
-        <div class="card p-3 mb-4">
-            <h5>Enregistrer une livraison</h5>
-            <form method="POST" class="row g-2">
-                <div class="col-md-3"><select name="id_p" id="select_produit_entree" class="form-select" required><option value="">-- Choisir produit --</option><?php foreach($prods as $p) echo "<option value='{$p['id_produit']}' data-default-prix='{$p['prix_unitaire']}' data-marge='{$p['marge_pourcentage']}'>{$p['nom_medicament']}</option>"; ?></select></div>
-                <div class="col-md-3"><select name="id_f" class="form-select" required><option value="">-- Choisir fournisseur --</option><?php foreach($fours as $f) echo "<option value='{$f['id_fournisseur']}'>{$f['nom_societe']}</option>"; ?></select></div>
-                <div class="col-md-2"><input type="number" name="qte" class="form-control" placeholder="Qte" required></div>
-                <div class="col-md-2"><input type="text" name="num_lot" class="form-control" placeholder="No Lot" required></div>
-                <div class="col-md-2"><input type="date" name="exp" class="form-control" required></div>
-                <div class="col-md-2"><input type="number" step="0.01" name="prix_achat_ttc" id="input_prix_achat" class="form-control" placeholder="Prix achat TTC" required></div>
-                <div class="col-md-2"><input type="number" step="0.01" name="marge_pourcentage" id="input_marge" class="form-control" placeholder="Profit Margin %"></div>
-                <div class="col-12"><button type="submit" name="btn_lot" class="btn btn-primary w-100">Valider l'entree</button></div>
-            </form>
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white"><h5>Enregistrer une nouvelle réception</h5></div>
+            <div class="card-body">
+                <form method="POST" class="row g-3">
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Source</label>
+                        <select name="source_provenance" id="select_source" class="form-select border-primary" onchange="verifierDon()" required>
+                            <option value="Achat">🛒 Achat Marché</option>
+                            <option value="Don">🎁 Don / ONG / État</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Produit (Med/Labo)</label>
+                        <select name="id_p" id="select_produit_entree" class="form-select" required>
+                            <option value="">-- Sélectionner --</option>
+                            <?php foreach($prods as $p): ?>
+                                <option value="<?= $p['id_produit'] ?>" data-default-prix="<?= $p['prix_unitaire'] ?>" data-marge="<?= $p['marge_pourcentage'] ?>">
+                                    <?= htmlspecialchars($p['nom_medicament']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Fournisseur / Donateur</label>
+                        <select name="id_f" class="form-select" required>
+                            <?php foreach($fours as $f) echo "<option value='{$f['id_fournisseur']}'>{$f['nom_societe']}</option>"; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">N° Lot</label>
+                        <input type="text" name="num_lot" class="form-control" placeholder="Ex: LOT-2024" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Date Expir.</label>
+                        <input type="date" name="exp" class="form-control" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Quantité</label>
+                        <input type="number" name="qte" class="form-control" min="1" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Prix Achat Unit. (TTC)</label>
+                        <input type="number" step="0.01" name="prix_achat_ttc" id="input_prix_achat" class="form-control" placeholder="0.00">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label fw-bold">Nouvelle Marge (%)</label>
+                        <input type="number" step="0.01" name="marge_pourcentage" id="input_marge" class="form-control" placeholder="Ex: 20">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" name="btn_lot" class="btn btn-primary w-100">🚀 Valider l'Entrée</button>
+                    </div>
+                </form>
+            </div>
         </div>
     <?php endif; ?>
 
-    <?php if($message): ?><?= $message ?><?php endif; ?>
-
-    <table class="table table-sm table-striped">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Medicament</th>
-                <th>Lot</th>
-                <th>Fournisseur</th>
-                <th>Qte</th>
-                <th>Expiration</th>
-                <th>Prix unitaire</th>
-                <th>Profit Margin %</th>
-                <th>Total</th>
-                <th>Utilisateur</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach($entrees as $e): ?>
-                <?php $isExpired = strtotime($e['date_expiration']) < strtotime(date('Y-m-d')); ?>
-                <tr class="<?= $isExpired ? 'table-danger' : '' ?>">
-                    <td><?= $e['date_enregistrement'] ?></td>
-                    <td><?= $e['nom_medicament'] ?></td>
-                    <td><?= $e['num_lot'] ?></td>
-                    <td><?= $e['nom_societe'] ?></td>
-                    <td><?= $e['quantite_initiale'] ?></td>
-                    <td><?= $e['date_expiration'] ?></td>
-                    <td><?= isset($e['prix_achat_ttc']) && $e['prix_achat_ttc'] ? $e['prix_achat_ttc'] : '-' ?></td>
-                    <td><?= isset($e['marge_pourcentage']) ? $e['marge_pourcentage'] . '%' : '-' ?></td>
-                    <td><?= isset($e['prix_achat_ttc']) && $e['prix_achat_ttc'] ? number_format($e['prix_achat_ttc'] * $e['quantite_initiale'], 2) : '-' ?></td>
-                    <td><?= isset($e['utilisateur']) && $e['utilisateur'] ? $e['utilisateur'] : '-' ?></td>
-                    <td class="text-nowrap">
-                        <?php if($isAdmin): ?>
-                            <button
-                                class="btn btn-sm btn-outline-primary me-1"
-                                data-bs-toggle="modal"
-                                data-bs-target="#modalEditLot"
-                                data-id="<?= $e['id_lot'] ?>"
-                                data-idp="<?= $e['id_produit'] ?>"
-                                data-idf="<?= $e['id_fournisseur'] ?>"
-                                data-num="<?= htmlspecialchars($e['num_lot']) ?>"
-                                data-qte="<?= $e['quantite_initiale'] ?>"
-                                data-exp="<?= $e['date_expiration'] ?>"
-                                data-prix="<?= isset($e['prix_achat_ttc']) ? $e['prix_achat_ttc'] : 0 ?>"
-                                title="Modifier"
-                            >
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <form method="POST" class="d-inline" onsubmit="return confirm('Supprimer ce lot ?');">
-                                <input type="hidden" name="id_lot" value="<?= $e['id_lot'] ?>">
-                                <button type="submit" name="btn_delete_lot" class="btn btn-sm btn-outline-danger" title="Supprimer">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
-                        <?php else: ?>
-                            -
-                        <?php endif; ?>
-                    </td>
-                </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Désignation</th>
+                        <th>Lot</th>
+                        <th>Source</th>
+                        <th>Qte Init.</th>
+                        <th>Expiration</th>
+                        <th>Prix Achat</th>
+                        <th>Total</th>
+                        <th>Agent</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach($entrees as $e): ?>
+                        <?php 
+                            $isExpired = strtotime($e['date_expiration']) < strtotime(date('Y-m-d'));
+                            $isDon = ($e['source_provenance'] === 'Don');
+                        ?>
+                        <tr class="<?= $isExpired ? 'table-danger' : '' ?>">
+                            <td class="small"><?= date('d/m/Y H:i', strtotime($e['date_enregistrement'])) ?></td>
+                            <td>
+                                <strong><?= htmlspecialchars($e['nom_medicament']) ?></strong>
+                                <?= $isDon ? '<span class="badge bg-success ms-1" title="Donation">🎁</span>' : '' ?>
+                            </td>
+                            <td><code class="text-dark"><?= htmlspecialchars($e['num_lot']) ?></code></td>
+                            <td><?= $isDon ? 'Don' : 'Achat' ?></td>
+                            <td><?= $e['quantite_initiale'] ?></td>
+                            <td class="<?= $isExpired ? 'fw-bold text-danger' : '' ?>"><?= date('d/m/Y', strtotime($e['date_expiration'])) ?></td>
+                            <td><?= $isDon ? '<span class="text-success">GRATUIT</span>' : number_format($e['prix_achat_ttc'], 0, '.', ' ') . ' F' ?></td>
+                            <td><?= $isDon ? '0 F' : number_format($e['prix_achat_ttc'] * $e['quantite_initiale'], 0, '.', ' ') . ' F' ?></td>
+                            <td class="small text-muted"><?= htmlspecialchars($e['utilisateur']) ?></td>
+                            <td>
+                                <?php if($isAdmin): ?>
+                                    <form method="POST" class="d-inline" onsubmit="return confirm('Voulez-vous vraiment supprimer ce lot de la base ?');">
+                                        <input type="hidden" name="id_lot" value="<?= $e['id_lot'] ?>">
+                                        <button type="submit" name="btn_delete_lot" class="btn btn-sm btn-outline-danger border-0"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
-<?php if($isAdmin): ?>
-<div class="modal fade" id="modalEditLot" tabindex="-1">
-  <div class="modal-dialog">
-    <form method="POST" class="modal-content">
-      <div class="modal-header"><h5>Modifier un lot</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-      <div class="modal-body">
-          <input type="hidden" name="id_lot" id="edit_id_lot">
-          <div class="mb-2">
-              <label class="form-label">Medicament</label>
-              <select name="id_p" id="edit_id_p" class="form-select" required>
-                  <?php foreach($prods as $p) echo "<option value='{$p['id_produit']}'>{$p['nom_medicament']}</option>"; ?>
-              </select>
-          </div>
-          <div class="mb-2">
-              <label class="form-label">Fournisseur</label>
-              <select name="id_f" id="edit_id_f" class="form-select" required>
-                  <?php foreach($fours as $f) echo "<option value='{$f['id_fournisseur']}'>{$f['nom_societe']}</option>"; ?>
-              </select>
-          </div>
-          <input type="text" name="num_lot" id="edit_num_lot" class="form-control mb-2" placeholder="No Lot" required>
-          <input type="number" name="qte" id="edit_qte" class="form-control mb-2" placeholder="Qte" required>
-          <input type="date" name="exp" id="edit_exp" class="form-control mb-2" required>
-          <input type="number" step="0.01" name="prix_achat_ttc" id="edit_prix" class="form-control" placeholder="Prix achat TTC">
-      </div>
-      <div class="modal-footer"><button type="submit" name="btn_update_lot" class="btn btn-success">Mettre a jour</button></div>
-    </form>
-  </div>
-</div>
-<?php endif; ?>
-
-<?php if($isAdmin): ?>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    var modal = document.getElementById('modalEditLot');
-    if (!modal) return;
-    modal.addEventListener('show.bs.modal', function (event) {
-        var button = event.relatedTarget;
-        document.getElementById('edit_id_lot').value = button.getAttribute('data-id');
-        document.getElementById('edit_id_p').value = button.getAttribute('data-idp');
-        document.getElementById('edit_id_f').value = button.getAttribute('data-idf');
-        document.getElementById('edit_num_lot').value = button.getAttribute('data-num');
-        document.getElementById('edit_qte').value = button.getAttribute('data-qte');
-        document.getElementById('edit_exp').value = button.getAttribute('data-exp');
-        var prix = button.getAttribute('data-prix');
-        if(document.getElementById('edit_prix')) document.getElementById('edit_prix').value = prix;
-    });
-});
+// Fonction pour griser le champ prix si c'est un DON
+function verifierDon() {
+    const source = document.getElementById('select_source').value;
+    const inputPrix = document.getElementById('input_prix_achat');
+    
+    if (source === 'Don') {
+        inputPrix.value = 0;
+        inputPrix.readOnly = true;
+        inputPrix.style.backgroundColor = "#e9ecef";
+    } else {
+        inputPrix.readOnly = false;
+        inputPrix.style.backgroundColor = "#ffffff";
+        // On remet le prix par défaut du produit sélectionné
+        const selectProd = document.getElementById('select_produit_entree');
+        if(selectProd.selectedIndex > 0) {
+            inputPrix.value = selectProd.options[selectProd.selectedIndex].getAttribute('data-default-prix');
+        }
+    }
+}
 
-// Script pour remplir automatiquement le prix d'achat par défaut lors de la sélection du produit
+// Gestion des changements de sélection de produit
 document.addEventListener('DOMContentLoaded', function() {
-    var selectProd = document.getElementById('select_produit_entree');
-    var inputPrix = document.getElementById('input_prix_achat');
-    var inputMarge = document.getElementById('input_marge');
+    const selectProd = document.getElementById('select_produit_entree');
+    const inputPrix = document.getElementById('input_prix_achat');
+    const inputMarge = document.getElementById('input_marge');
+    const selectSource = document.getElementById('select_source');
+
     if(selectProd) {
         selectProd.addEventListener('change', function() {
-            var option = selectProd.options[selectProd.selectedIndex];
-            var defaultPrix = option.getAttribute('data-default-prix');
-            var defaultMarge = option.getAttribute('data-marge');
-            if(defaultPrix && inputPrix) {
-                inputPrix.value = defaultPrix;
-            }
-            if(defaultMarge && inputMarge) {
-                inputMarge.value = defaultMarge;
+            if (selectSource.value === 'Don') return; // Ne change rien si c'est un don
+
+            const option = selectProd.options[selectProd.selectedIndex];
+            if(option.value !== "") {
+                inputPrix.value = option.getAttribute('data-default-prix');
+                inputMarge.value = option.getAttribute('data-marge');
             }
         });
     }
+    // Initialisation au chargement
+    verifierDon();
 });
 </script>
-<?php endif; ?>
 
 <?php include '../includes/footer.php'; ?>

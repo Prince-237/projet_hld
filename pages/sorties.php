@@ -17,6 +17,10 @@ if (isset($_POST['valider_sortie'])) {
     $prix_vente = $_POST['prix_vente'];
     $id_user = $_SESSION['user_id'];
 
+    if ($id_source === $id_destination) {
+        $message = "<div class='alert alert-danger'>Erreur : La source et la destination ne peuvent pas être identiques.</div>";
+    } else {
+
     try {
         $pdo->beginTransaction();
 
@@ -94,6 +98,7 @@ if (isset($_POST['valider_sortie'])) {
     } catch (Exception $e) {
         $pdo->rollBack();
         $message = "<div class='alert alert-danger'>Erreur systeme : " . $e->getMessage() . "</div>";
+    }
     }
 }
 
@@ -258,12 +263,12 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
                     <thead>
                         <tr>
                             <th>Date</th>
-                            <th>Medicament</th>
+                            <th>Med.</th>
                             <th>Lot</th>
                             <th>Source</th>
                             <th>Destination</th>
                             <th>Qte</th>
-                            <th>Prix U. de Vente</th>
+                            <th>P. U. Vente</th>
                             <th>Total</th>
                             <th>Utilisateur</th>
                             <th>Action</th>

@@ -101,7 +101,7 @@ $pvs = $pdo->query("SELECT id_point_vente, nom_point_vente FROM points_vente ORD
       <tr>
           <th>Point de vente</th>
           <th class="text-end">Chiffre d'Affaires (Ventes)</th>
-          <th class="text-end">Coût d'Achat (Est.)</th>
+          <th class="text-end">Prix d'Achat</th>
           <th class="text-end fw-bold">Bénéfice Net</th>
       </tr>
     </thead>
