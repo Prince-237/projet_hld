@@ -98,7 +98,7 @@ if ($search !== '') {
     $produits = $pdo->query("$sql_base ORDER BY p.nom_medicament ASC")->fetchAll();
 }
 
-include '../includes/header.php';
+include '../includes/sidebar.php';
 ?>
 
 <div class="container mt-4">
@@ -106,12 +106,12 @@ include '../includes/header.php';
         <h2>Catalogue des Produits</h2>
         <?php if($isAdmin): ?>
             <div class="d-flex gap-2">
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalProduit">
-                    + Nouveau Produit
-                </button>
                 <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalVoirCategories">
                     Voir les catégories
                 </button>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalProduit">
+                    + Nouveau Produit
+                </button>                
             </div>
         <?php endif; ?>
     </div>
@@ -122,8 +122,8 @@ include '../includes/header.php';
     <!-- FORMULAIRE RECHERCHE (inchangé) -->
     <form method="GET" id="searchForm" class="mb-3 d-flex" role="search">
         <input id="searchInput" type="search" name="q" class="form-control me-2" placeholder="Rechercher un médicament..." value="<?= htmlspecialchars($search) ?>">
-        <button class="btn btn-outline-primary me-2" type="submit">Rechercher</button>
-        <a href="produits.php" class="btn btn-outline-secondary">Réinitialiser</a>
+        <button class="btn btn-primary me-2" type="submit">Rechercher</button>
+        <a href="produits.php" class="btn btn-outline-primary">Réinitialiser</a>
     </form>
 
     <!-- TABLEAU (inchangé) -->
@@ -150,8 +150,8 @@ include '../includes/header.php';
                     <td><?= htmlspecialchars($p['nom_categorie']) ?> (<?= htmlspecialchars($p['forme']) ?>)</td>
                     <td><?= number_format($p['prix_unitaire'], 2) ?> FCFA</td>
                     <td><?= $p['marge_pourcentage'] ?>%</td>
-                    <td><span class="badge bg-secondary"><?= $seuil ?></span></td>
-                    <td><span class="badge bg-info text-dark"><?= $p['stock_total'] ?></span></td>
+                    <td><span class=""><?= $seuil ?></span></td>
+                    <td><span class="text-dark"><?= $p['stock_total'] ?></span></td>
                     <td class="text-nowrap">
                         <?php if($isAdmin): ?>
                             <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditProduit"
@@ -216,7 +216,7 @@ include '../includes/header.php';
                 <?php endif; ?>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-target="#modalAjouterCategorie" data-bs-toggle="modal" data-bs-dismiss="modal">
+                <button type="button" class="btn btn-outline-primary" data-bs-target="#modalAjouterCategorie" data-bs-toggle="modal" data-bs-dismiss="modal">
                     Creer une nouvelle categorie
                 </button>
             </div>
@@ -258,7 +258,7 @@ include '../includes/header.php';
                 <input type="number" name="seuil_alerte" class="form-control" placeholder="Seuil d'alerte (ex: 30)" min="0">
             </div>
             <div class="modal-footer">
-                <button type="submit" name="btn_ajouter_produit" class="btn btn-success">Enregistrer le produit</button>
+                <button type="submit" name="btn_ajouter_produit" class="btn btn-primary">Enregistrer le produit</button>
             </div>
         </form>
     </div>
@@ -285,7 +285,7 @@ include '../includes/header.php';
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="submit" name="btn_ajouter_categorie" class="btn btn-success btn-sm">Ajouter</button>
+                <button type="submit" name="btn_ajouter_categorie" class="btn btn-primary btn-sm">Ajouter</button>
             </div>
         </form>
     </div>
@@ -307,7 +307,7 @@ include '../includes/header.php';
                 <input type="number" name="seuil_alerte" id="edit_seuil" class="form-control" min="0">
             </div>
             <div class="modal-footer">
-                <button type="submit" name="btn_update_produit" class="btn btn-success">Mettre à jour</button>
+                <button type="submit" name="btn_update_produit" class="btn btn-primary">Mettre à jour</button>
             </div>
         </form>
     </div>

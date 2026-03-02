@@ -21,7 +21,7 @@ $nb_perime = $pdo->query("SELECT COUNT(*) FROM stock_lots WHERE date_expiration 
 $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM stock_lots l JOIN produits p ON l.id_produit = p.id_produit LEFT JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur WHERE l.date_expiration <= CURRENT_DATE AND l.quantite_actuelle > 0 ORDER BY l.date_expiration ASC LIMIT 10")->fetchAll();
 ?>
 
-<?php include '../includes/header.php'; ?>
+<?php include '../includes/sidebar.php'; ?>
 
 <div class="container mt-4">
     <h2 class="mb-4">Tableau de Bord - Hôpital Laquintinie</h2>

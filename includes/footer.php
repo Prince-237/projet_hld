@@ -1,7 +1,7 @@
     </main>
     <footer class="mt-5 py-4 bg-white border-top text-center text-muted">
     <div class="container">
-        <p>&copy; 2026 - Système de Gestion Pharmacie | Hôpital Laquintinie de Douala</p>
+        Système de Gestion de la Pharmacie | Hôpital Laquintinie de Douala</p>
     </div>
 </footer>
     </div>

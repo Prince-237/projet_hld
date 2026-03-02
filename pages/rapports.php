@@ -1,6 +1,6 @@
 <?php 
 require_once('config/db.php'); 
-include('includes/header.php'); 
+include '../includes/sidebar.php';
 
 // On récupère les dates depuis le formulaire, sinon par défaut les 30 derniers jours
 $date_debut = $_POST['date_debut'] ?? date('Y-m-d', strtotime('-30 days'));

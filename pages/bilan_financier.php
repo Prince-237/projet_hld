@@ -52,7 +52,7 @@ foreach ($rows as $r) {
 
 $pvs = $pdo->query("SELECT id_point_vente, nom_point_vente FROM points_vente ORDER BY nom_point_vente ASC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
-<?php include '../includes/header.php'; ?>
+<?php include '../includes/sidebar.php'; ?>
 <div class="container mt-4">
   <h2 class="mb-4">Bilan Financier — <?= htmlspecialchars(date('F', mktime(0,0,0,$month,1,$year)))." ". $year ?></h2>
 

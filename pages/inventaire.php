@@ -18,7 +18,7 @@ if ($isAdmin && isset($_POST['btn_seuil'])) {
 }
 
 $inventaire = $pdo->query("SELECT * FROM produits ORDER BY stock_total ASC")->fetchAll();
-include '../includes/header.php';
+include '../includes/sidebar.php';
 ?>
 
 <div class="container mt-4">

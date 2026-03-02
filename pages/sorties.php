@@ -3,7 +3,7 @@
 require_once('../config/db.php');
 session_start();
 if (!isset($_SESSION['user_id'])) { header("Location: ../index.php"); exit(); }
-include('../includes/header.php');
+include '../includes/sidebar.php';
 $isAdmin = ($_SESSION['role'] === 'admin');
 
 $message = "";
@@ -182,7 +182,7 @@ $lotsDisponibles = $pdo->query($sqlLots)->fetchAll();
 $pvs = $pdo->query("SELECT * FROM points_vente ORDER BY nom_point_vente ASC")->fetchAll();
 
 // Historique des sorties
-$sqlSorties = "SELECT s.*, l.num_lot, p.nom_medicament, u.nom_complet AS utilisateur, pv_src.nom_point_vente as source_nom, pv_dest.nom_point_vente as dest_nom
+$sqlSorties = "SELECT s.*, l.num_lot, l.source_provenance, p.nom_medicament, u.nom_complet AS utilisateur, pv_src.nom_point_vente as source_nom, pv_dest.nom_point_vente as dest_nom
                FROM sorties s
                JOIN stock_lots l ON s.id_lot = l.id_lot
                JOIN produits p ON l.id_produit = p.id_produit
@@ -194,7 +194,7 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
 ?>
 
 <div class="container mt-4">
-    <h2 class="mb-4 text-primary"><i class="fas fa-file-export"></i> Sortie de Medicaments</h2>
+    <h2 class="mb-4"><i class="fas fa-file-export"></i> Sortie de Medicaments</h2>
     <?php if($isAdmin): ?>
 
     <?php echo $message; ?>
@@ -204,7 +204,7 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
             <form action="" method="POST">
                 <div class="row">
                     <div class="col-md-12 mb-3">
-                        <label class="form-label font-weight-bold">Selectionner le Lot (Medicament - Lot - Quantite dispo)</label>
+                        <label class="form-label fw-bold">Selectionner le Lot (Medicament - Lot - Quantite dispo)</label>
                         <select name="id_lot" id="select_lot" class="form-select" required>
                             <option value="">-- Choisir un lot --</option>
                             <?php foreach($lotsDisponibles as $l): ?>
@@ -213,13 +213,13 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <small class="text-muted">Note : les lots sont tries par date d'expiration (FIFO).</small>
+                        <!-- <small class="text-muted">Note : les lots sont tries par date d'expiration (FIFO).</small> -->
                     </div>
                 </div>
 
                 <div class="row">
                     <div class="col-md-4 mb-3">
-                        <label class="form-label">Source</label>
+                        <label class="form-label fw-bold">Source</label>
                         <select name="id_source" class="form-select" required>
                             <?php foreach($pvs as $pv): ?>
                                 <option value="<?= $pv['id_point_vente'] ?>" <?= ($pv['id_point_vente'] == 1) ? 'selected' : '' ?>><?= $pv['nom_point_vente'] ?></option>
@@ -227,7 +227,7 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
                         </select>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <label class="form-label">Destination</label>
+                        <label class="form-label fw-bold">Destination</label>
                         <select name="id_destination" class="form-select" required>
                             <option value="">-- Choisir destination --</option>
                             <?php foreach($pvs as $pv): ?>
@@ -236,11 +236,11 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
                         </select>
                     </div>
                     <div class="col-md-2 mb-3">
-                        <label class="form-label">Quantite a sortir</label>
+                        <label class="form-label fw-bold">Quantite a sortir</label>
                         <input type="number" name="quantite_sortie" class="form-control" min="1" required>
                     </div>
                     <div class="col-md-2 mb-3">
-                        <label class="form-label">Prix de vente unitaire <small class="text-muted">(Auto)</small></label>
+                        <label class="form-label fw-bold">Prix de vente unitaire <small class="text-muted">(Auto)</small></label>
                         <input type="number" step="0.01" name="prix_vente" id="prix_vente" class="form-control" readonly>
                     </div>
                 </div>
@@ -283,7 +283,7 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
                                 <td><span class="badge bg-secondary"><?= $s['source_nom'] ?? '?' ?></span></td>
                                 <td><span class="badge bg-success"><?= $s['dest_nom'] ?? $s['nom_point_vente'] ?></span></td>
                                 <td><?= $s['quantite_sortie'] ?></td>
-                                <td><?= $s['prix_vente_unitaire'] ?></td>
+                                <td><?= ($s['source_provenance'] === 'Don') ? '<span class="text-success fw-bold">GRATUIT</span>' : number_format($s['prix_vente_unitaire'], 0, '.', ' ') . ' F' ?></td>
                                 <td><?= $s['total_prix'] ?></td>
                                 <td><?= isset($s['utilisateur']) && $s['utilisateur'] ? $s['utilisateur'] : '-' ?></td>
                                 <td class="text-nowrap">
@@ -375,6 +375,3 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
 </div>
-
-
-<?php include('../includes/footer.php'); ?>
