@@ -12,39 +12,20 @@ if (isset($_POST['btn_inscription'])) {
     // ON FIXE LE RÔLE ICI : personne ne peut le changer depuis le formulaire
     $role = 'user'; 
 
-    if (empty($nom) || empty($user) || empty($pass) || empty($email)) {
-        $message = "<div class='alert alert-warning shadow-sm'>⚠️ Veuillez remplir tous les champs.</div>";
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $message = "<div class='alert alert-danger shadow-sm'>⚠️ Adresse email invalide.</div>";
-    } else {
-        // On ne vérifie le domaine que si une connexion internet est détectée
-        $connected = @fsockopen("www.google.com", 80, $errno, $errstr, 1);
-        if ($connected) {
-            fclose($connected);
-            if (!checkdnsrr(substr(strrchr($email, "@"), 1), "MX")) {
-                $message = "<div class='alert alert-danger shadow-sm'>⚠️ Le domaine de cet email semble invalide (vérification en ligne).</div>";
-            }
-        }
+    if (!empty($nom) && !empty($user) && !empty($pass) && !empty($email)) {
+        $pass_hache = password_hash($pass, PASSWORD_DEFAULT);
 
-        // Si aucun message d'erreur n'a été défini, on continue
-        if (empty($message)) {
-            try {
-                // On vérifie aussi que l'email ou le nom d'utilisateur n'est pas déjà pris
-                $stmt = $pdo->prepare("SELECT 1 FROM utilisateurs WHERE username = ? OR email = ?");
-                $stmt->execute([$user, $email]);
-                if ($stmt->fetch()) {
-                    $message = "<div class='alert alert-danger shadow-sm'>❌ Erreur : Le nom d'utilisateur ou l'email est déjà utilisé.</div>";
-                } else {
-                    $pass_hache = password_hash($pass, PASSWORD_DEFAULT);
-                    $sql = "INSERT INTO utilisateurs (nom_complet, username, email, password, role) VALUES (?, ?, ?, ?, ?)";
-                    $stmt = $pdo->prepare($sql);
-                    $stmt->execute([$nom, $user, $email, $pass_hache, $role]);
-                    $message = "<div class='alert alert-success shadow-sm'>✅ Inscription réussie ! Votre compte est en mode 'Consultation'. <a href='index.php' class='fw-bold'>Se connecter</a></div>";
-                }
-            } catch (PDOException $e) {
-                $message = "<div class='alert alert-danger shadow-sm'>❌ Erreur système lors de l'inscription.</div>";
-            }
+        try {
+            $sql = "INSERT INTO utilisateurs (nom_complet, username, email, password, role) VALUES (?, ?, ?, ?, ?)";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$nom, $user, $email, $pass_hache, $role]);
+            
+            $message = "<div class='alert alert-success shadow-sm'>✅ Inscription réussie ! Votre compte est en mode 'Consultation'. <a href='index.php' class='fw-bold'>Se connecter</a></div>";
+        } catch (PDOException $e) {
+            $message = "<div class='alert alert-danger shadow-sm'>❌ Erreur : Ce nom d'utilisateur est déjà utilisé.</div>";
         }
+    } else {
+        $message = "<div class='alert alert-warning shadow-sm'>⚠️ Veuillez remplir tous les champs.</div>";
     }
 }
 ?>
@@ -67,18 +48,18 @@ if (isset($_POST['btn_inscription'])) {
         <div class="card mx-auto shadow-lg" style="max-width: 450px;">
             <div class="card-header bg-primary text-white text-center py-3">
                 <h4 class="mb-0">Créer un compte</h4>
-                <small>Hôpital Laquintinie</small>
+                <small>Accès Utilisateur </small>
             </div>
             <div class="card-body p-4">
                 <?= $message ?>
                 <form method="POST">
                     <div class="mb-3">
                         <label class="form-label fw-bold">Nom Complet</label>
-                        <input type="text" name="nom_complet" class="form-control" placeholder="ex: My Name" required>
+                        <input type="text" name="nom_complet" class="form-control" placeholder="ex: No Name" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Nom d'utilisateur</label>
-                        <input type="text" name="username" class="form-control" placeholder="ex: My-Name" required>
+                        <input type="text" name="username" class="form-control" placeholder="ex: No-Name" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Email</label>
@@ -101,9 +82,6 @@ if (isset($_POST['btn_inscription'])) {
                         <a href="index.php" class="text-decoration-none text-muted">Retour à la connexion</a>
                     </div>
                 </form>
-                <div class="card-footer text-center text-muted py-3 bg-white" style="border-radius: 0 0 15px 15px;">
-                <small>Système de Gestion de la Pharmacie | Hôpital Laquintinie de Douala</small>
-            </div>
             </div>
         </div>
     </div>

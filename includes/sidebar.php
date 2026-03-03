@@ -68,11 +68,13 @@ function isActive($page) {
         <!-- </nav> -->
 
         <div class="sidebar-user mt-auto p-3 text-white">
-            <div class="mb-2 small">
-                <i class="bi bi-person-circle"></i>
-                <?= isset($_SESSION['nom']) ? strtoupper($_SESSION['nom']) : 'UTILISATEUR' ?>
-                <small class="badge bg-light text-primary ms-1"><?= $_SESSION['role'] ?? 'guest' ?></small>
-            </div>
+            <a href="#" class="text-white text-decoration-none" data-bs-toggle="modal" data-bs-target="#userProfileModal">
+                <div class="mb-2 small">
+                    <i class="bi bi-person-circle fs-5 align-middle"></i>
+                    <span class="align-middle"><?= isset($_SESSION['nom']) ? strtoupper($_SESSION['nom']) : 'UTILISATEUR' ?></span>
+                    <small class="badge bg-light text-primary ms-1 align-middle"><?= $_SESSION['role'] ?? 'guest' ?></small>
+                </div>
+            </a>
             <a href="<?= $root_prefix ?>logout.php" class="btn btn-outline-light btn-sm">Deconnexion</a>
         </div>
     </aside>

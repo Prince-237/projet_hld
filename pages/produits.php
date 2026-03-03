@@ -86,7 +86,9 @@ if ($isAdmin && isset($_POST['btn_delete_produit'])) {
 
 // Recherche
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
-$sql_base = "SELECT p.*, c.nom_categorie, c.forme, c.dosage 
+$sql_base = "SELECT p.*, c.nom_categorie, c.forme, c.dosage,
+                COALESCE((SELECT SUM(sl.quantite_actuelle) FROM stock_lots sl WHERE sl.id_produit = p.id_produit AND sl.source_provenance = 'Achat'), 0) AS stock_achat,
+                COALESCE((SELECT SUM(sl.quantite_actuelle) FROM stock_lots sl WHERE sl.id_produit = p.id_produit AND sl.source_provenance = 'Don'), 0) AS stock_don
              FROM produits p 
              JOIN product_categories c ON p.id_categorie = c.id_categorie";
 
@@ -134,8 +136,10 @@ include '../includes/sidebar.php';
                 <th>Catégorie</th>
                 <th>Prix Réf.</th>
                 <th>Profit Margin %</th>
-                <th>Seuil</th>
-                <th>Stock Global</th>
+                <th class="text-center">Seuil</th>
+                <th class="text-center">Stock Achat</th>
+                <th class="text-center">Stock Don</th>
+                <th class="text-center">Stock Total</th>
                 <th>Action</th>
             </tr>
         </thead>
@@ -148,10 +152,12 @@ include '../includes/sidebar.php';
                 <tr class="<?= $rowClass ?>">
                     <td><?= htmlspecialchars($p['nom_medicament']) ?></td>
                     <td><?= htmlspecialchars($p['nom_categorie']) ?> (<?= htmlspecialchars($p['forme']) ?>)</td>
-                    <td><?= number_format($p['prix_unitaire'], 2) ?> FCFA</td>
-                    <td><?= $p['marge_pourcentage'] ?>%</td>
-                    <td><span class=""><?= $seuil ?></span></td>
-                    <td><span class="text-dark"><?= $p['stock_total'] ?></span></td>
+                    <td><?= number_format($p['prix_unitaire'] ?? 0, 2) ?> FCFA</td>
+                    <td class="text-center"><?= $p['marge_pourcentage'] ?>%</td>
+                    <td class="text-center"><?= $seuil ?></td>
+                    <td class="text-center"><?= $p['stock_achat'] ?></td>
+                    <td class="text-center"><?= $p['stock_don'] ?></td>
+                    <td class="text-center"><?= $p['stock_total'] ?></td>
                     <td class="text-nowrap">
                         <?php if($isAdmin): ?>
                             <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditProduit"

@@ -17,6 +17,7 @@ if (isset($_POST['btn_login'])) {
     if ($user && password_verify($password, $user['password'])) {
         $_SESSION['user_id'] = $user['id_user'];
         $_SESSION['nom'] = $user['nom_complet'];
+        $_SESSION['username'] = $user['username'];
         $_SESSION['role'] = $user['role'];
         
         // Attention : On redirige vers le dossier pages/
@@ -47,7 +48,7 @@ if (isset($_POST['btn_login'])) {
     <div class="container">
         <div class="card mx-auto shadow-lg" style="max-width: 450px;">
             <div class="card-header bg-primary text-white text-center py-3">
-                <h4 class="mb-0">Accès Pharmacie</h4>
+                <h4 class="mb-0">Se Connecter</h4>
                 <small>Hôpital Laquintinie</small>
             </div>
             
@@ -65,6 +66,7 @@ if (isset($_POST['btn_login'])) {
                     <div class="mb-3">
                         <label class="form-label fw-bold">Mot de passe</label>
                         <input type="password" name="password" class="form-control" placeholder="Entrez votre mot de passe" required>
+                        <div class="text-end mt-1"><a href="pages/forgot_password.php" class="small text-decoration-none">Mot de passe oublié ?</a></div>
                     </div>
                     
                     <button type="submit" name="btn_login" class="btn btn-primary w-100 py-2 fw-bold shadow-sm">
@@ -80,7 +82,7 @@ if (isset($_POST['btn_login'])) {
                 </form>
             </div>
             <div class="card-footer text-center text-muted py-3 bg-white" style="border-radius: 0 0 15px 15px;">
-                <small>&copy; 2026 - Direction Technique</small>
+                <small>Système de Gestion de la Pharmacie | Hôpital Laquintinie de Douala</small>
             </div>
         </div>
     </div>
