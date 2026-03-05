@@ -56,11 +56,14 @@ if (isset($_POST['btn_inscription'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inscription - Pharmacie Laquintinie</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
         body { background-color: #f8f9fa; display: flex; align-items: center; min-height: 100vh; }
         .card { border: none; border-radius: 15px; }
         .card-header { border-radius: 15px 15px 0 0 !important; }
-    </style>
+        .toggle-password { cursor: pointer; color: #6c757d; }
+        .toggle-password:hover { color: #343a40; }
+            </style>
 </head>
 <body>
     <div class="container">
@@ -84,9 +87,12 @@ if (isset($_POST['btn_inscription'])) {
                         <label class="form-label fw-bold">Email</label>
                         <input type="email" name="email" class="form-control" placeholder="ex: moi@hopital.com" required>
                     </div>
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative">
                         <label class="form-label fw-bold">Mot de passe</label>
-                        <input type="password" name="password" class="form-control" placeholder="Entrez un mot de passe" required>
+                        <input type="password" name="password" class="form-control pe-5" placeholder="Entrez un mot de passe" required>
+                        <span class="toggle-password position-absolute" role="button" aria-label="Afficher le mot de passe" style="top:50%; right:0.75rem; transform:translateY(-50%);">
+                            <i class="bi bi-eye"></i>
+                        </span>
                     </div>
                     
                     <div class="alert alert-light border text-muted small">
@@ -96,10 +102,13 @@ if (isset($_POST['btn_inscription'])) {
                     <button type="submit" name="btn_inscription" class="btn btn-primary w-100 py-2 fw-bold shadow-sm">
                         S'inscrire
                     </button>
-                    
-                    <div class="text-center mt-3">
-                        <a href="index.php" class="text-decoration-none text-muted">Retour à la connexion</a>
+                    <hr class="my-4">
+
+                    <div class="text-center mt-3 mb-3">
+                        <p class="mb-0 text-muted">Déjà un compte ?</p>
+                        <a href="index.php" class="text-decoration-none fw-bold text-primary">Se connecter</a>
                     </div>
+                    
                 </form>
                 <div class="card-footer text-center text-muted py-3 bg-white" style="border-radius: 0 0 15px 15px;">
                 <small>Système de Gestion de la Pharmacie | Hôpital Laquintinie de Douala</small>
@@ -107,5 +116,6 @@ if (isset($_POST['btn_inscription'])) {
             </div>
         </div>
     </div>
+    <script src="assets/js/password-toggle.js"></script>
 </body>
 </html>

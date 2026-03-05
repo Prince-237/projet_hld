@@ -36,13 +36,16 @@ if (isset($_POST['btn_login'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connexion - Pharmacie Laquintinie</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
         body { background-color: #f8f9fa; display: flex; align-items: center; min-height: 100vh; }
         .card { border: none; border-radius: 15px; }
         .card-header { border-radius: 15px 15px 0 0 !important; }
         .btn-primary { background-color: #0d6efd; border: none; }
         .btn-primary:hover { background-color: #0b5ed7; }
-    </style>
+        .toggle-password { cursor: pointer; color: #6c757d; }
+        .toggle-password:hover { color: #343a40; }
+            </style>
 </head>
 <body>
     <div class="container">
@@ -63,9 +66,12 @@ if (isset($_POST['btn_login'])) {
                         <input type="text" name="username" class="form-control" placeholder="Entrez votre login" required autofocus>
                     </div>
                     
-                    <div class="mb-3">
+                    <div class="mb-3 position-relative">
                         <label class="form-label fw-bold">Mot de passe</label>
-                        <input type="password" name="password" class="form-control" placeholder="Entrez votre mot de passe" required>
+                        <input type="password" name="password" class="form-control pe-5" placeholder="Entrez votre mot de passe" required>
+                        <span class="toggle-password position-absolute" role="button" aria-label="Afficher le mot de passe" style="top:50%; right:0.75rem; transform:translateY(-50%);">
+                            <i class="bi bi-eye"></i>
+                        </span>
                         <div class="text-end mt-1"><a href="pages/forgot_password.php" class="small text-decoration-none">Mot de passe oublié ?</a></div>
                     </div>
                     
@@ -86,5 +92,6 @@ if (isset($_POST['btn_login'])) {
             </div>
         </div>
     </div>
+    <script src="assets/js/password-toggle.js"></script>
 </body>
 </html>
