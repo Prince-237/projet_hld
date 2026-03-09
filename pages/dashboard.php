@@ -15,10 +15,10 @@ $nb_alerte = $pdo->query($sql_alerte)->fetchColumn();
 // C. Ruptures de stock (Stock Total = 0)
 $nb_rupture = $pdo->query("SELECT COUNT(*) FROM produits WHERE stock_total = 0")->fetchColumn();
 
-// D. Produits périmés (On compare la date d'aujourd'hui avec date_expiration dans stock_lots)
-$nb_perime = $pdo->query("SELECT COUNT(*) FROM stock_lots WHERE date_expiration <= CURRENT_DATE AND quantite_actuelle > 0")->fetchColumn();
-// Récupère des lots périmés (détails pour affichage)
-$expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM stock_lots l JOIN produits p ON l.id_produit = p.id_produit LEFT JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur WHERE l.date_expiration <= CURRENT_DATE AND l.quantite_actuelle > 0 ORDER BY l.date_expiration ASC LIMIT 10")->fetchAll();
+// D. Produits périmés ou bientôt périmés (on inclut les lots à moins de 14 jours de leur date d'expiration)
+$nb_perime = $pdo->query("SELECT COUNT(*) FROM stock_lots WHERE date_expiration <= DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) AND quantite_actuelle > 0")->fetchColumn();
+// Récupère des lots périmés/critiques (détails pour affichage)
+$expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM stock_lots l JOIN produits p ON l.id_produit = p.id_produit LEFT JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur WHERE l.date_expiration <= DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) AND l.quantite_actuelle > 0 ORDER BY l.date_expiration ASC LIMIT 10")->fetchAll();
 ?>
 
 <?php include '../includes/sidebar.php'; ?>
@@ -37,9 +37,9 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
         </div>
 
         <div class="col-md-3">
-            <div class="card bg-warning text-dark shadow">
+            <div class="card bg-warning shadow">
                 <div class="card-body">
-                    <h6>Stocks Critiques</h6>
+                    <h6>Critiques</h6>
                     <h2><?= $nb_alerte ?></h2>
                 </div>
             </div>
@@ -57,7 +57,7 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
         <div class="col-md-3">
             <div class="card bg-dark text-white shadow">
                 <div class="card-body">
-                    <h6>Produits Périmés</h6>
+                    <h6>Périmés</h6>
                     <h2><?= $nb_perime ?></h2>
                 </div>
             </div>
@@ -70,7 +70,7 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
             <table class="table table-hover bg-white shadow-sm">
                 <thead class="table-light">
                     <tr>
-                        <th>Médicament</th>
+                        <th>Produit</th>
                         <th>Stock Actuel</th>
                         <th>Seuil Dynamique</th>
                         <th>État</th>
@@ -96,27 +96,40 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
     
     <div class="row mt-4">
         <div class="col-md-12">
-            <h4>Lots périmés</h4>
+            <h4>Lots périmés / Proche de l'expiration</h4>
             <table class="table table-sm table-striped bg-white shadow-sm">
                 <thead class="table-light">
                     <tr>
-                        <th>Médicament</th>
+                        <th>Produit</th>
                         <th>Lot</th>
                         <th>Quantité restante</th>
                         <th>Expiration</th>
-                        <th>Fournisseur</th>
+                        <th>Fournisseur /<br> <span>Donateur</span></th>
                         <th>Date entrée</th>
+                        <th>État</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach($expired_lots as $lot): ?>
-                        <tr>
+                        <?php
+                            $exp_ts = strtotime($lot['date_expiration']);
+                            $today = strtotime(date('Y-m-d'));
+                            if ($exp_ts < $today) {
+                                $status = '<span class="badge bg-dark">Périmé</span>';
+                                // $rowClass = 'table-dark text-white';
+                            } else {
+                                $status = '<span class="badge bg-warning">Critique</span>';
+                                // $rowClass = 'table-warning';
+                            }
+                        ?>
+                        <tr class="<?= $rowClass ?>">
                             <td><?= htmlspecialchars($lot['nom_medicament']) ?></td>
                             <td><?= htmlspecialchars($lot['num_lot']) ?></td>
                             <td><?= $lot['quantite_actuelle'] ?></td>
                             <td><?= $lot['date_expiration'] ?></td>
                             <td><?= isset($lot['nom_societe']) ? htmlspecialchars($lot['nom_societe']) : '-' ?></td>
                             <td><?= $lot['date_enregistrement'] ?></td>
+                            <td><?= $status ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

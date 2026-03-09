@@ -247,6 +247,7 @@ include '../includes/sidebar.php';
                 <thead class="table-light">
                     <tr>
                         <th>Date</th>
+                        <th>État</th>
                         <th>Désignation</th>
                         <th>Lot</th>
                         <th>Source</th>
@@ -261,15 +262,29 @@ include '../includes/sidebar.php';
                 <tbody>
                     <?php foreach($achats as $e): ?>
                         <?php 
-                            $isExpired = strtotime($e['date_expiration']) < strtotime(date('Y-m-d'));
+                            $today = strtotime(date('Y-m-d'));
+                            $exp_ts = strtotime($e['date_expiration']);
+                            $isExpired = $exp_ts < $today;
+                            $isCritical = !$isExpired && $exp_ts <= strtotime('+14 days', $today);
+                            if ($isExpired) {
+                                $rowClass = 'table-dark text-white';
+                                $statusBadge = '<span class="badge bg-white text-dark">Périmé</span>';
+                            } elseif ($isCritical) {
+                                $rowClass = 'table-warning';
+                                $statusBadge = '<span class="badge bg-warning text-dark">Critique</span>';
+                            } else {
+                                $rowClass = '';
+                                $statusBadge = '';
+                            }
                         ?>
-                        <tr class="<?= $isExpired ? 'table-danger' : '' ?>">
+                        <tr class="<?= $rowClass ?>">
                             <td class="small"><?= date('d/m/Y H:i', strtotime($e['date_enregistrement'])) ?></td>
+                            <td><?= $statusBadge ?></td>
                             <td>
                                 <strong><?= htmlspecialchars($e['nom_medicament']) ?></strong>
                             </td>
                             <td><code class="text-dark"><?= htmlspecialchars($e['num_lot']) ?></code></td>
-                            <td>Achat</td>
+                            <td><?= htmlspecialchars($e['nom_societe']) ?></td>
                             <td><?= $e['quantite_initiale'] ?></td>
                             <td class="<?= $isExpired ? 'fw-bold text-danger' : '' ?>"><?= date('d/m/Y', strtotime($e['date_expiration'])) ?></td>
                             <td><?= number_format($e['prix_achat_ttc'], 0, '.', ' ') . ' F' ?></td>
@@ -309,6 +324,7 @@ include '../includes/sidebar.php';
                 <thead class="table-light">
                     <tr>
                         <th>Date</th>
+                        <th>État</th>
                         <th>Désignation</th>
                         <th>Lot</th>
                         <th>Source</th>
@@ -323,18 +339,32 @@ include '../includes/sidebar.php';
                 <tbody>
                     <?php foreach($dons as $e): ?>
                         <?php 
-                            $isExpired = strtotime($e['date_expiration']) < strtotime(date('Y-m-d'));
+                            $today = strtotime(date('Y-m-d'));
+                            $exp_ts = strtotime($e['date_expiration']);
+                            $isExpired = $exp_ts < $today;
+                            $isCritical = !$isExpired && $exp_ts <= strtotime('+14 days', $today);
+                            if ($isExpired) {
+                                $rowClass = 'table-dark text-white';
+                                $statusBadge = '<span class="badge bg-white text-dark">Périmé</span>';
+                            } elseif ($isCritical) {
+                                $rowClass = 'table-warning';
+                                $statusBadge = '<span class="badge bg-warning text-dark">Critique</span>';
+                            } else {
+                                $rowClass = '';
+                                $statusBadge = '';
+                            }
                         ?>
-                        <tr class="<?= $isExpired ? 'table-danger' : '' ?>">
+                        <tr class="<?= $rowClass ?>">
                             <td class="small"><?= date('d/m/Y H:i', strtotime($e['date_enregistrement'])) ?></td>
+                            <td><?= $statusBadge ?></td>
                             <td>
                                 <strong><?= htmlspecialchars($e['nom_medicament']) ?></strong>
                             </td>
                             <td><code class="text-dark"><?= htmlspecialchars($e['num_lot']) ?></code></td>
-                            <td>Don</td>
+                            <td><?= htmlspecialchars($e['nom_societe']) ?></td>
                             <td><?= $e['quantite_initiale'] ?></td>
-                            <td class="<?= $isExpired ? 'fw-bold text-danger' : '' ?>"><?= date('d/m/Y', strtotime($e['date_expiration'])) ?></td>
-                            <td><span class="text-success">GRATUIT</span></td>
+                            <td class="<?= $isExpired ? '' : '' ?>"><?= date('d/m/Y', strtotime($e['date_expiration'])) ?></td>
+                            <td><span class="">GRATUIT</span></td>
                             <td>0 F</td>
                             <td class="small text-muted"><?= htmlspecialchars($e['utilisateur']) ?></td>
                             <td class="text-nowrap">
