@@ -4,6 +4,45 @@ session_start();
 
 if (!isset($_SESSION['user_id'])) { header("Location: /index.php"); exit(); }
 
+// déterminer si l'utilisateur est admin (pharmacien)
+$isAdmin = (isset($_SESSION['role']) && $_SESSION['role'] === 'admin');
+
+// message pour affichage d'alertes (ex : création utilisateur)
+$message = '';
+
+// traitement de l'ajout d'un nouvel utilisateur par un admin
+if ($isAdmin && isset($_POST['btn_new_user'])) {
+    $nom = htmlspecialchars(trim($_POST['nom_complet']));
+    $user = htmlspecialchars(trim($_POST['username']));
+    $email = htmlspecialchars(trim($_POST['email']));
+    $pass = $_POST['password'];
+    $role = ($_POST['role'] === 'admin') ? 'admin' : 'user';
+
+    if (empty($nom) || empty($user) || empty($pass) || empty($email)) {
+        $message = "<div class='alert alert-warning shadow-sm'>⚠️ Veuillez remplir tous les champs.</div>";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $message = "<div class='alert alert-danger shadow-sm'>⚠️ Adresse email invalide.</div>";
+    } else {
+        // vérification d'existence
+        $stmt = $pdo->prepare("SELECT 1 FROM utilisateurs WHERE username = ? OR email = ?");
+        $stmt->execute([$user, $email]);
+        if ($stmt->fetch()) {
+            $message = "<div class='alert alert-danger shadow-sm'>❌ Erreur : Le nom d'utilisateur ou l'email est déjà utilisé.</div>";
+        } else {
+            $pass_hache = password_hash($pass, PASSWORD_DEFAULT);
+            $sql = "INSERT INTO utilisateurs (nom_complet, username, email, password, role) VALUES (?, ?, ?, ?, ?)";
+            $stmt = $pdo->prepare($sql);
+            try {
+                $stmt->execute([$nom, $user, $email, $pass_hache, $role]);
+                $message = "<div class='alert alert-success shadow-sm'>✅ Utilisateur créé avec succès.</div>";
+            } catch (PDOException $e) {
+                $message = "<div class='alert alert-danger shadow-sm'>❌ Erreur système lors de la création de l'utilisateur.</div>";
+            }
+        }
+    }
+}
+
+
 // 1. Calcul des statistiques
 // A. Nombre de produits total
 $nb_produits = $pdo->query("SELECT COUNT(*) FROM produits")->fetchColumn();
@@ -24,7 +63,15 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
 <?php include '../includes/sidebar.php'; ?>
 
 <div class="container mt-4">
-    <h2 class="mb-4">Tableau de Bord - Hôpital Laquintinie</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Tableau de Bord - Hôpital Laquintinie</h2>
+        <?php if ($isAdmin): ?>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAddUser">
+                <i class="bi bi-person-plus"></i> Ajouter
+            </button>
+        <?php endif; ?>
+    </div>
+    <?= $message ?>
     
     <div class="row">
         <div class="col-md-3">
@@ -137,5 +184,55 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
         </div>
     </div>
 </div>
+
+<?php if ($isAdmin): ?>
+<!-- Modal pour ajout utilisateur -->
+<div class="modal fade" id="modalAddUser" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="POST" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Ajouter un utilisateur</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+          <?= $message ?>
+          <div class="mb-3">
+              <label class="form-label fw-bold">Nom Complet</label>
+              <input type="text" name="nom_complet" class="form-control" required>
+          </div>
+          <div class="mb-3">
+              <label class="form-label fw-bold">Nom d'utilisateur</label>
+              <input type="text" name="username" class="form-control" required>
+          </div>
+          <div class="mb-3">
+              <label class="form-label fw-bold">Email</label>
+              <input type="email" name="email" class="form-control" required>
+          </div>
+          <div class="mb-3">
+              <label class="form-label fw-bold">Mot de passe</label>
+              <div class="position-relative">
+                  <input type="password" name="password" class="form-control pe-5" required>
+                  <span class="toggle-password position-absolute" role="button" aria-label="Afficher le mot de passe" style="top:50%; right:0.75rem; transform:translateY(-50%);">
+                      <i class="bi bi-eye"></i>
+                  </span>
+              </div>
+          </div>
+          <div class="mb-3">
+              <label class="form-label fw-bold">Rôle</label>
+              <select name="role" class="form-select" required>
+                  <option value="user">Utilisateur</option>
+                  <option value="admin">Administrateur</option>
+              </select>
+          </div>
+      </div>
+      <div class="modal-footer">
+          <button type="submit" name="btn_new_user" class="btn btn-primary">Ajouter</button>
+      </div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
+
+<script src="../assets/js/password-toggle.js"></script>
 
 <?php include '../includes/footer.php'; ?>

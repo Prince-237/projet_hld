@@ -34,6 +34,7 @@ if ($isAdmin && isset($_POST['btn_ajouter_categorie'])) {
 if ($isAdmin && isset($_POST['btn_ajouter_produit'])) {
     $nom = htmlspecialchars(trim($_POST['nom']));
     $id_categorie = (int)$_POST['id_categorie'];
+    $type_produit = htmlspecialchars(trim($_POST['type_produit']));
     $prix_unitaire = !empty($_POST['prix_unitaire']) ? (float)$_POST['prix_unitaire'] : null;
     $marge = !empty($_POST['marge_pourcentage']) ? (float)$_POST['marge_pourcentage'] : 20;
     $seuil = !empty($_POST['seuil_alerte']) ? (int)$_POST['seuil_alerte'] : 0;
@@ -44,8 +45,8 @@ if ($isAdmin && isset($_POST['btn_ajouter_produit'])) {
     
     if ($checkCategorie->fetch()) {
         // Catégorie OK → INSERT PRODUIT
-        $stmt = $pdo->prepare("INSERT INTO produits (id_categorie, nom_medicament, prix_unitaire, marge_pourcentage, seuil_alerte, stock_total) VALUES (?, ?, ?, ?, ?, 0)");
-        if ($stmt->execute([$id_categorie, $nom, $prix_unitaire, $marge, $seuil])) {
+        $stmt = $pdo->prepare("INSERT INTO produits (id_categorie, nom_medicament, type_produit, prix_unitaire, marge_pourcentage, seuil_alerte, stock_total) VALUES (?, ?, ?, ?, ?, ?, 0)");
+        if ($stmt->execute([$id_categorie, $nom, $type_produit, $prix_unitaire, $marge, $seuil])) {
             $message = "<div class='alert alert-success'>Produit ajouté avec succès !</div>";
         } else {
             $message = "<div class='alert alert-danger'>Erreur lors de l'ajout du produit.</div>";
@@ -133,6 +134,7 @@ include '../includes/sidebar.php';
         <thead class="table-light">
             <tr>
                 <th>Nom</th>
+                <th>Type</th>
                 <th>Catégorie</th>
                 <th>Prix Réf.</th>
                 <th>Profit Margin %</th>
@@ -151,6 +153,7 @@ include '../includes/sidebar.php';
             ?>
                 <tr class="<?= $rowClass ?>">
                     <td><?= htmlspecialchars($p['nom_medicament']) ?></td>
+                    <td><?= htmlspecialchars($p['type_produit']) ?></td>
                     <td><?= htmlspecialchars($p['nom_categorie']) ?> (<?= htmlspecialchars($p['forme']) ?>)</td>
                     <td><?= number_format($p['prix_unitaire'] ?? 0, 2) ?> FCFA</td>
                     <td class="text-center"><?= $p['marge_pourcentage'] ?>%</td>
@@ -257,6 +260,19 @@ include '../includes/sidebar.php';
                         <i class="bi bi-plus-circle"></i> Nouvelle catégorie
                     </button>
                 </div>
+
+
+                <!-- TYPE PRODUIT -->
+                <div class="mb-3">
+                    <label class="form-label">Type de produit <span class="text-danger">*</span></label>
+                    <select name="type_produit" class="form-select" required>
+                        <option value="">Choisir le type...</option>
+                        <option value="Pharmacie">Pharmacie</option>
+                        <option value="Laboratoire">Laboratoire</option>
+                    </select>
+                </div>
+
+                
 
                 <input type="text" name="nom" class="form-control mb-2" placeholder="Nom du médicament (ex: Doliprane)" required>
                 <input type="number" step="0.01" name="prix_unitaire" class="form-control mb-2" placeholder="Prix unitaire (FCFA)" min="0">

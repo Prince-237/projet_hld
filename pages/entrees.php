@@ -116,7 +116,7 @@ if ($isAdmin && isset($_POST['btn_update_lot'])) {
 }
 
 // Récupération des données pour l'affichage
-$entrees = $pdo->query("SELECT l.*, p.nom_medicament, p.marge_pourcentage, f.nom_societe, u.nom_complet AS utilisateur 
+$entrees = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, p.marge_pourcentage, f.nom_societe, u.nom_complet AS utilisateur 
                         FROM stock_lots l 
                         JOIN produits p ON l.id_produit = p.id_produit 
                         JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur 
@@ -157,12 +157,12 @@ include '../includes/sidebar.php';
                         <select name="id_p" id="select_produit_entree" class="form-select" required>
                             <option value="">-- Sélectionner --</option>
                             <?php
-                                // séparer en deux groupes : pharmacie (Medicament) puis laboratoire
+                                // séparer en deux groupes : pharmacie (Pharmacie) puis laboratoire
                                 $pharma = array_filter($prods, fn($prod) => $prod['type_produit'] === 'Medicament');
                                 $labo   = array_filter($prods, fn($prod) => $prod['type_produit'] === 'Laboratoire');
                             ?>
                             <?php if(count($pharma)): ?>
-                                <optgroup label="Pharmacie">
+                                <optgroup label="Medicament">
                                 <?php foreach($pharma as $p): ?>
                                     <option value="<?= $p['id_produit'] ?>" data-default-prix="<?= $p['prix_unitaire'] ?>" data-marge="<?= $p['marge_pourcentage'] ?>">
                                         <?= htmlspecialchars($p['nom_medicament']) ?>
@@ -208,7 +208,7 @@ include '../includes/sidebar.php';
                     </div>
                     <div class="col-md-2">
                         <label class="form-label fw-bold">N° Lot</label>
-                        <input type="text" name="num_lot" class="form-control" placeholder="Ex: LOT-2024" required>
+                        <input type="text" name="num_lot" class="form-control" placeholder="Ex: LOT-2026" required>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label fw-bold">Date Expir.</label>
@@ -249,6 +249,7 @@ include '../includes/sidebar.php';
                         <th>Date</th>
                         <th>État</th>
                         <th>Désignation</th>
+                        <th>Type</th>
                         <th>Lot</th>
                         <th>Source</th>
                         <th>Qte Init.</th>
@@ -274,7 +275,7 @@ include '../includes/sidebar.php';
                                 $statusBadge = '<span class="badge bg-warning text-dark">Critique</span>';
                             } else {
                                 $rowClass = '';
-                                $statusBadge = '';
+                                $statusBadge = '<span class="badge bg-success">Valide</span>';
                             }
                         ?>
                         <tr class="<?= $rowClass ?>">
@@ -283,13 +284,14 @@ include '../includes/sidebar.php';
                             <td>
                                 <strong><?= htmlspecialchars($e['nom_medicament']) ?></strong>
                             </td>
+                            <td><?= htmlspecialchars($e['type_produit'] ?? '-') ?></td>
                             <td><code class="text-dark"><?= htmlspecialchars($e['num_lot']) ?></code></td>
                             <td><?= htmlspecialchars($e['nom_societe']) ?></td>
                             <td><?= $e['quantite_initiale'] ?></td>
-                            <td class="<?= $isExpired ? 'fw-bold text-danger' : '' ?>"><?= date('d/m/Y', strtotime($e['date_expiration'])) ?></td>
+                            <td class="<?= $isExpired ? '' : '' ?>"><?= date('d/m/Y', strtotime($e['date_expiration'])) ?></td>
                             <td><?= number_format($e['prix_achat_ttc'], 0, '.', ' ') . ' F' ?></td>
                             <td><?= number_format($e['prix_achat_ttc'] * $e['quantite_initiale'], 0, '.', ' ') . ' F' ?></td>
-                            <td class="small text-muted"><?= htmlspecialchars($e['utilisateur']) ?></td>
+                            <td class="<?php echo $isExpired ? 'small text-white' : 'small text-muted'; ?>"><?= htmlspecialchars($e['utilisateur']) ?></td>
                             <td class="text-nowrap">
                                 <?php if($isAdmin): ?>
                                     <button class="btn btn-sm btn-outline-primary me-1 border-0" 
@@ -326,6 +328,7 @@ include '../includes/sidebar.php';
                         <th>Date</th>
                         <th>État</th>
                         <th>Désignation</th>
+                        <th>Type</th>
                         <th>Lot</th>
                         <th>Source</th>
                         <th>Qte Init.</th>
@@ -351,7 +354,7 @@ include '../includes/sidebar.php';
                                 $statusBadge = '<span class="badge bg-warning text-dark">Critique</span>';
                             } else {
                                 $rowClass = '';
-                                $statusBadge = '';
+                                $statusBadge = '<span class="badge bg-success">Valide</span>';
                             }
                         ?>
                         <tr class="<?= $rowClass ?>">
@@ -360,13 +363,14 @@ include '../includes/sidebar.php';
                             <td>
                                 <strong><?= htmlspecialchars($e['nom_medicament']) ?></strong>
                             </td>
+                            <td><?= htmlspecialchars($e['type_produit'] ?? '-') ?></td>
                             <td><code class="text-dark"><?= htmlspecialchars($e['num_lot']) ?></code></td>
                             <td><?= htmlspecialchars($e['nom_societe']) ?></td>
                             <td><?= $e['quantite_initiale'] ?></td>
                             <td class="<?= $isExpired ? '' : '' ?>"><?= date('d/m/Y', strtotime($e['date_expiration'])) ?></td>
                             <td><span class="">GRATUIT</span></td>
                             <td>0 F</td>
-                            <td class="small text-muted"><?= htmlspecialchars($e['utilisateur']) ?></td>
+                            <td class="<?php echo $isExpired ? 'small text-white' : 'small text-muted'; ?>"><?= htmlspecialchars($e['utilisateur']) ?></td>
                             <td class="text-nowrap">
                                 <?php if($isAdmin): ?>
                                     <button class="btn btn-sm btn-outline-primary me-1 border-0" 
