@@ -64,7 +64,7 @@ $sql = "SELECT pv.*,
         (SELECT IFNULL(SUM(quantite_sortie), 0) FROM sorties WHERE id_source = pv.id_point_vente) as total_envoye,
         (SELECT IFNULL(SUM(quantite_sortie), 0) FROM sorties WHERE id_destination = pv.id_point_vente) as total_recu
         FROM points_vente pv 
-        ORDER BY pv.id_point_vente ASC";
+        ORDER BY total_recu DESC";
 $points_vente = $pdo->query($sql)->fetchAll();
 
 include '../includes/sidebar.php';

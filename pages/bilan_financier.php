@@ -43,6 +43,24 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute([':year' => $year, ':month' => $month]);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Requête pour les statistiques par produit (Top sorties)
+$sql_prods = "
+    SELECT p.nom_medicament, p.type_produit, SUM(s.quantite_sortie) as total_qte, SUM(s.total_prix) as total_valeur
+    FROM sorties s
+    JOIN stock_lots l ON s.id_lot = l.id_lot
+    JOIN produits p ON l.id_produit = p.id_produit
+    WHERE YEAR(s.date_sortie) = :year AND MONTH(s.date_sortie) = :month
+";
+$params_prods = [':year' => $year, ':month' => $month];
+if ($pointId !== null) {
+    $sql_prods .= " AND s.id_source = :pv";
+    $params_prods[':pv'] = $pointId;
+}
+$sql_prods .= " GROUP BY p.id_produit ORDER BY total_qte DESC";
+$stmt_prods = $pdo->prepare($sql_prods);
+$stmt_prods->execute($params_prods);
+$stats_produits = $stmt_prods->fetchAll(PDO::FETCH_ASSOC);
+
 $total_global = 0.0;
 $filtered = [];
 foreach ($rows as $r) {
@@ -123,6 +141,37 @@ $pvs = $pdo->query("SELECT id_point_vente, nom_point_vente FROM points_vente ORD
     </tfoot>
   </table>
   </div>
+  </div>
+
+  <div class="card shadow-sm mt-4">
+      <div class="card-header bg-light">
+          <h5 class="mb-0">Classement des produits les plus sortis</h5>
+      </div>
+      <div class="card-body">
+          <table class="table table-striped table-hover table-sm">
+              <thead>
+                  <tr>
+                      <th>Produit</th>
+                      <th>Type</th>
+                      <th class="text-center">Quantité Sortie</th>
+                      <th class="text-end">Montant Total</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  <?php foreach ($stats_produits as $sp): ?>
+                      <tr>
+                          <td><?= htmlspecialchars($sp['nom_medicament']) ?></td>
+                          <td><span class="badge bg-secondary"><?= htmlspecialchars($sp['type_produit']) ?></span></td>
+                          <td class="text-center fw-bold"><?= $sp['total_qte'] ?></td>
+                          <td class="text-end"><?= number_format($sp['total_valeur'], 0, ',', ' ') ?> FCFA</td>
+                      </tr>
+                  <?php endforeach; ?>
+                  <?php if (empty($stats_produits)): ?>
+                      <tr><td colspan="4" class="text-center text-muted">Aucune sortie enregistrée pour cette période.</td></tr>
+                  <?php endif; ?>
+              </tbody>
+          </table>
+      </div>
   </div>
 </div>
 <?php include '../includes/footer.php'; ?>

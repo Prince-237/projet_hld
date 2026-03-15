@@ -112,7 +112,7 @@ if ($search !== '') {
 }
 
 $whereSql = ' WHERE ' . implode(' AND ', $whereClauses);
-$stmt = $pdo->prepare("$sql_base$whereSql ORDER BY p.nom_medicament ASC");
+$stmt = $pdo->prepare("$sql_base$whereSql ORDER BY p.stock_total DESC");
 $stmt->execute($params);
 $produits = $stmt->fetchAll();
 
