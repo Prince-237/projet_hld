@@ -7,6 +7,8 @@ include '../includes/sidebar.php';
 $isAdmin = ($_SESSION['role'] === 'admin');
 
 $message = "";
+$typeFilter = isset($_GET['type']) && in_array($_GET['type'], ['Pharmacie','Laboratoire']) ? $_GET['type'] : 'Pharmacie';
+$typeProduit = ($typeFilter === 'Laboratoire') ? 'Laboratoire' : 'Medicament';
 
 // 2. Traitement de la sortie de stock
 if (isset($_POST['valider_sortie'])) {
@@ -182,15 +184,22 @@ $lotsDisponibles = $pdo->query($sqlLots)->fetchAll();
 $pvs = $pdo->query("SELECT * FROM points_vente ORDER BY nom_point_vente ASC")->fetchAll();
 
 // Historique des sorties
-$sqlSorties = "SELECT s.*, l.num_lot, l.source_provenance, p.nom_medicament, u.nom_complet AS utilisateur, pv_src.nom_point_vente as source_nom, pv_dest.nom_point_vente as dest_nom
+$sqlSorties = "SELECT s.*, l.num_lot, l.source_provenance, p.nom_medicament, p.type_produit, u.nom_complet AS utilisateur, pv_src.nom_point_vente as source_nom, pv_dest.nom_point_vente as dest_nom
                FROM sorties s
                JOIN stock_lots l ON s.id_lot = l.id_lot
                JOIN produits p ON l.id_produit = p.id_produit
                LEFT JOIN points_vente pv_src ON s.id_source = pv_src.id_point_vente
                LEFT JOIN points_vente pv_dest ON s.id_destination = pv_dest.id_point_vente
                LEFT JOIN utilisateurs u ON s.id_user = u.id_user
+               WHERE p.type_produit = :typeProduit
                ORDER BY s.id_sortie DESC";
-$sorties = $pdo->query($sqlSorties)->fetchAll();
+$stmtSorties = $pdo->prepare($sqlSorties);
+$stmtSorties->execute([':typeProduit' => $typeProduit]);
+$sorties = $stmtSorties->fetchAll();
+
+// Séparation des sorties Achat/Fournisseur et Don
+$sorties_achats = array_filter($sorties, fn($s) => $s['source_provenance'] !== 'Don');
+$sorties_dons = array_filter($sorties, fn($s) => $s['source_provenance'] === 'Don');
 ?>
 
 <div class="container mt-4">
@@ -199,12 +208,15 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
 
     <?php echo $message; ?>
 
-    <div class="card shadow border-0">
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5>Enregistrer une nouvelle sortie</h5>
+        </div>
         <div class="card-body">
             <form action="" method="POST">
                 <div class="row">
                     <div class="col-md-12 mb-3">
-                        <label class="form-label fw-bold">Selectionner le Lot (Medicament - Lot - Quantite dispo)</label>
+                        <label class="form-label fw-bold">Selectionner le Lot</label>
                         <select name="id_lot" id="select_lot" class="form-select" required>
                             <option value="">-- Choisir un lot --</option>
                             <?php foreach($lotsDisponibles as $l): ?>
@@ -255,15 +267,31 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
     </div>
     <?php endif; ?>
 
+    <!-- FORMULAIRE RECHERCHE + FILTRE TYPE sous la barre -->
+    <form method="GET" id="searchForm" class="my-3" role="search">
+        
+        <div>
+            <label for="typeFilter" class="form-label">Trier par type</label>
+            <div class="d-flex gap-2">
+                <select id="typeFilter" name="type" class="form-select">
+                    <option value="Medicament" <?= $typeFilter === 'Medicament' ? 'selected' : '' ?>>Pharmacie</option>
+                    <option value="Laboratoire" <?= $typeFilter === 'Laboratoire' ? 'selected' : '' ?>>Laboratoire</option>
+                </select>
+                <button type="submit" class="btn btn-secondary">Appliquer</button>
+            </div>
+        </div>
+    </form>
+
     <div class="card mt-4 shadow-sm">
         <div class="card-body">
-            <h5 class="card-title">Historique des sorties</h5>
+            <h5 class="card-title">Historique des sorties (Fournisseur)</h5>
             <div class="table-responsive">
                 <table class="table table-sm table-striped">
                     <thead>
                         <tr>
                             <th>Date</th>
                             <th>Med.</th>
+                            <th>Type</th>
                             <th>Lot</th>
                             <th>Source</th>
                             <th>Destination</th>
@@ -275,10 +303,11 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if(!empty($sorties)): foreach($sorties as $s): ?>
+                        <?php if(!empty($sorties_achats)): foreach($sorties_achats as $s): ?>
                             <tr>
                                 <td><?= $s['date_sortie'] ?></td>
                                 <td><?= $s['nom_medicament'] ?></td>
+                                <td><?= htmlspecialchars($s['type_produit']) ?></td>
                                 <td><?= $s['num_lot'] ?></td>
                                 <td><span class="badge bg-secondary"><?= $s['source_nom'] ?? '?' ?></span></td>
                                 <td><span class="badge bg-success"><?= $s['dest_nom'] ?? $s['nom_point_vente'] ?></span></td>
@@ -313,6 +342,73 @@ $sorties = $pdo->query($sqlSorties)->fetchAll();
                             </tr>
                         <?php endforeach; else: ?>
                             <tr><td colspan="10" class="text-center text-muted">Aucune sortie enregistree.</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mt-4 shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">Historique des sorties (Don)</h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Med.</th>
+                            <th>Type</th>
+                            <th>Lot</th>
+                            <th>Source</th>
+                            <th>Destination</th>
+                            <th>Qte</th>
+                            <th>P. U. Vente</th>
+                            <th>Total</th>
+                            <th>Utilisateur</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if(!empty($sorties_dons)): foreach($sorties_dons as $s): ?>
+                            <tr>
+                                <td><?= $s['date_sortie'] ?></td>
+                                <td><?= $s['nom_medicament'] ?></td>
+                                <td><?= htmlspecialchars($s['type_produit']) ?></td>
+                                <td><?= $s['num_lot'] ?></td>
+                                <td><span class="badge bg-secondary"><?= $s['source_nom'] ?? '?' ?></span></td>
+                                <td><span class="badge bg-success"><?= $s['dest_nom'] ?? $s['nom_point_vente'] ?></span></td>
+                                <td><?= $s['quantite_sortie'] ?></td>
+                                <td><?= ($s['source_provenance'] === 'Don') ? '<span class="text-success fw-bold">GRATUIT</span>' : number_format($s['prix_vente_unitaire'], 0, '.', ' ') . ' F' ?></td>
+                                <td><?= $s['total_prix'] ?></td>
+                                <td><?= isset($s['utilisateur']) && $s['utilisateur'] ? $s['utilisateur'] : '-' ?></td>
+                                <td class="text-nowrap">
+                                    <?php if($isAdmin): ?>
+                                        <button
+                                            class="btn btn-sm btn-outline-primary me-1"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#modalEditSortie"
+                                            data-id="<?= $s['id_sortie'] ?>"
+                                            data-point="<?= htmlspecialchars($s['nom_point_vente']) ?>"
+                                            data-qte="<?= $s['quantite_sortie'] ?>"
+                                            data-prix="<?= $s['prix_vente_unitaire'] ?>"
+                                            title="Modifier"
+                                        >
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('Supprimer cette sortie ?');">
+                                            <input type="hidden" name="id_sortie" value="<?= $s['id_sortie'] ?>">
+                                            <button type="submit" name="btn_delete_sortie" class="btn btn-sm btn-outline-danger" title="Supprimer">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    <?php else: ?>
+                                        -
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; else: ?>
+                            <tr><td colspan="11" class="text-center text-muted">Aucune sortie de don enregistree.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>

@@ -79,27 +79,42 @@ if ($isAdmin && isset($_POST['btn_delete_produit'])) {
     if ($hasLots) {
         $message = "<div class='alert alert-danger'>Suppression impossible : des lots existent pour ce médicament.</div>";
     } else {
-        $stmt = $pdo->prepare("DELETE FROM produits WHERE id_produit = ?");
-        $stmt->execute([$id]);
-        $message = "<div class='alert alert-success'>Produit supprimé.</div>";
+        try {
+            $stmt = $pdo->prepare("DELETE FROM produits WHERE id_produit = ?");
+            $stmt->execute([$id]);
+            $message = "<div class='alert alert-success'>Produit supprimé.</div>";
+        } catch (PDOException $e) {
+            if ($e->getCode() == '23000') {
+                $message = "<div class='alert alert-warning'>Impossible de supprimer ce produit : il est lié à des historiques (inventaires, entrées, sorties...).</div>";
+            } else {
+                $message = "<div class='alert alert-danger'>Erreur système : " . $e->getMessage() . "</div>";
+            }
+        }
     }
 }
 
-// Recherche
+// Recherche et filtre type produit (Pharmacie/Laboratoire)
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
+$typeFilter = isset($_GET['type']) && in_array($_GET['type'], ['Medicament', 'Laboratoire']) ? $_GET['type'] : 'Medicament';
+
 $sql_base = "SELECT p.*, c.nom_categorie, c.forme, c.dosage,
                 COALESCE((SELECT SUM(sl.quantite_actuelle) FROM stock_lots sl WHERE sl.id_produit = p.id_produit AND sl.source_provenance = 'Achat'), 0) AS stock_achat,
                 COALESCE((SELECT SUM(sl.quantite_actuelle) FROM stock_lots sl WHERE sl.id_produit = p.id_produit AND sl.source_provenance = 'Don'), 0) AS stock_don
              FROM produits p 
              JOIN product_categories c ON p.id_categorie = c.id_categorie";
 
+$whereClauses = ['p.type_produit = ?'];
+$params = [$typeFilter];
+
 if ($search !== '') {
-    $stmt = $pdo->prepare("$sql_base WHERE p.nom_medicament LIKE ? ORDER BY p.nom_medicament ASC");
-    $stmt->execute(['%' . $search . '%']);
-    $produits = $stmt->fetchAll();
-} else {
-    $produits = $pdo->query("$sql_base ORDER BY p.nom_medicament ASC")->fetchAll();
+    $whereClauses[] = 'p.nom_medicament LIKE ?';
+    $params[] = '%' . $search . '%';
 }
+
+$whereSql = ' WHERE ' . implode(' AND ', $whereClauses);
+$stmt = $pdo->prepare("$sql_base$whereSql ORDER BY p.nom_medicament ASC");
+$stmt->execute($params);
+$produits = $stmt->fetchAll();
 
 include '../includes/sidebar.php';
 ?>
@@ -122,11 +137,23 @@ include '../includes/sidebar.php';
     <?php if(isset($message)): echo $message; endif; ?>
     <?php if(isset($message_categorie)): echo $message_categorie; endif; ?>
 
-    <!-- FORMULAIRE RECHERCHE (inchangé) -->
-    <form method="GET" id="searchForm" class="mb-3 d-flex" role="search">
-        <input id="searchInput" type="search" name="q" class="form-control me-2" placeholder="Rechercher un médicament..." value="<?= htmlspecialchars($search) ?>">
-        <button class="btn btn-primary me-2" type="submit">Rechercher</button>
-        <a href="produits.php" class="btn btn-outline-primary">Réinitialiser</a>
+    <!-- FORMULAIRE RECHERCHE + FILTRE TYPE sous la barre -->
+    <form method="GET" id="searchForm" class="mb-3" role="search">
+        <div class="d-flex gap-2 mb-2">
+            <input id="searchInput" type="search" name="q" class="form-control" placeholder="Rechercher un médicament..." value="<?= htmlspecialchars($search) ?>">
+            <button class="btn btn-primary" type="submit">Rechercher</button>
+            <a href="produits.php" class="btn btn-outline-primary">Réinitialiser</a>
+        </div>
+        <div>
+            <label for="typeFilter" class="form-label">Trier par type</label>
+            <div class="d-flex gap-2">
+                <select id="typeFilter" name="type" class="form-select">
+                    <option value="Medicament" <?= $typeFilter === 'Medicament' ? 'selected' : '' ?>>Pharmacie</option>
+                    <option value="Laboratoire" <?= $typeFilter === 'Laboratoire' ? 'selected' : '' ?>>Laboratoire</option>
+                </select>
+                <button type="submit" class="btn btn-secondary">Appliquer</button>
+            </div>
+        </div>
     </form>
 
     <!-- TABLEAU (inchangé) -->
@@ -134,7 +161,6 @@ include '../includes/sidebar.php';
         <thead class="table-light">
             <tr>
                 <th>Nom</th>
-                <th>Type</th>
                 <th>Catégorie</th>
                 <th>Prix Réf.</th>
                 <th>Profit Margin %</th>
@@ -153,7 +179,6 @@ include '../includes/sidebar.php';
             ?>
                 <tr class="<?= $rowClass ?>">
                     <td><?= htmlspecialchars($p['nom_medicament']) ?></td>
-                    <td><?= htmlspecialchars($p['type_produit']) ?></td>
                     <td><?= htmlspecialchars($p['nom_categorie']) ?> (<?= htmlspecialchars($p['forme']) ?>)</td>
                     <td><?= number_format($p['prix_unitaire'] ?? 0, 2) ?> FCFA</td>
                     <td class="text-center"><?= $p['marge_pourcentage'] ?>%</td>
@@ -267,7 +292,7 @@ include '../includes/sidebar.php';
                     <label class="form-label">Type de produit <span class="text-danger">*</span></label>
                     <select name="type_produit" class="form-select" required>
                         <option value="">Choisir le type...</option>
-                        <option value="Pharmacie">Pharmacie</option>
+                        <option value="Medicament">Pharmacie</option>
                         <option value="Laboratoire">Laboratoire</option>
                     </select>
                 </div>

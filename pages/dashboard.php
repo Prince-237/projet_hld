@@ -57,7 +57,7 @@ $nb_rupture = $pdo->query("SELECT COUNT(*) FROM produits WHERE stock_total = 0")
 // D. Produits périmés ou bientôt périmés (on inclut les lots à moins de 14 jours de leur date d'expiration)
 $nb_perime = $pdo->query("SELECT COUNT(*) FROM stock_lots WHERE date_expiration <= DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) AND quantite_actuelle > 0")->fetchColumn();
 // Récupère des lots périmés/critiques (détails pour affichage)
-$expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM stock_lots l JOIN produits p ON l.id_produit = p.id_produit LEFT JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur WHERE l.date_expiration <= DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) AND l.quantite_actuelle > 0 ORDER BY l.date_expiration ASC LIMIT 10")->fetchAll();
+$expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, f.nom_societe FROM stock_lots l JOIN produits p ON l.id_produit = p.id_produit LEFT JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur WHERE l.date_expiration <= DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) AND l.quantite_actuelle > 0 ORDER BY l.date_expiration ASC LIMIT 10")->fetchAll();
 ?>
 
 <?php include '../includes/sidebar.php'; ?>
@@ -66,8 +66,8 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="mb-0">Tableau de Bord - Hôpital Laquintinie</h2>
         <?php if ($isAdmin): ?>
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAddUser">
-                <i class="bi bi-person-plus"></i> Ajouter
+            <button class="btn btn-primary btn-md" data-bs-toggle="modal" data-bs-target="#modalAddUser">
+                <i class="bi bi-person-plus"></i> Créer un Utilisateur
             </button>
         <?php endif; ?>
     </div>
@@ -118,6 +118,7 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
                 <thead class="table-light">
                     <tr>
                         <th>Produit</th>
+                        <th>Type</th>
                         <th>Stock Actuel</th>
                         <th>Seuil Dynamique</th>
                         <th>État</th>
@@ -130,6 +131,7 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
                         $status = ($row['stock_total'] == 0) ? '<span class="badge bg-danger">Rupture</span>' : '<span class="badge bg-warning">Critique</span>';
                         echo "<tr>
                                 <td>{$row['nom_medicament']}</td>
+                                <td>{$row['type_produit']}</td>
                                 <td>{$row['stock_total']}</td>
                                 <td>{$row['seuil_alerte']}</td>
                                 <td>$status</td>
@@ -148,6 +150,7 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
                 <thead class="table-light">
                     <tr>
                         <th>Produit</th>
+                        <th>Type</th>
                         <th>Lot</th>
                         <th>Quantité restante</th>
                         <th>Expiration</th>
@@ -171,6 +174,7 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, f.nom_societe FROM st
                         ?>
                         <tr class="<?= $rowClass ?>">
                             <td><?= htmlspecialchars($lot['nom_medicament']) ?></td>
+                            <td><?= htmlspecialchars($lot['type_produit']) ?></td>
                             <td><?= htmlspecialchars($lot['num_lot']) ?></td>
                             <td><?= $lot['quantite_actuelle'] ?></td>
                             <td><?= $lot['date_expiration'] ?></td>
