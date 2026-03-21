@@ -8,7 +8,7 @@ if (isset($_POST['btn_reset'])) {
 
     if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
         // Vérifier si l'email existe
-        $stmt = $pdo->prepare("SELECT id_user, nom_complet FROM utilisateurs WHERE email = ?");
+        $stmt = $pdo->prepare("SELECT id_user, nom_complet FROM Utilisateur WHERE email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
@@ -19,7 +19,7 @@ if (isset($_POST['btn_reset'])) {
             $expiry = date("Y-m-d H:i:s", time() + 60 * 30); // Valide 30 minutes
 
             // Enregistrer le hash du token en base
-            $sql = "UPDATE utilisateurs SET reset_token_hash = ?, reset_token_expires_at = ? WHERE id_user = ?";
+            $sql = "UPDATE Utilisateur SET reset_token_hash = ?, reset_token_expires_at = ? WHERE id_user = ?";
             $stmt = $pdo->prepare($sql);
             
             if ($stmt->execute([$token_hash, $expiry, $user['id_user']])) {

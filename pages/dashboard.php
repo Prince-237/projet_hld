@@ -24,13 +24,13 @@ if ($isAdmin && isset($_POST['btn_new_user'])) {
         $message = "<div class='alert alert-danger shadow-sm'>⚠️ Adresse email invalide.</div>";
     } else {
         // vérification d'existence
-        $stmt = $pdo->prepare("SELECT 1 FROM utilisateurs WHERE username = ? OR email = ?");
+        $stmt = $pdo->prepare("SELECT 1 FROM Utilisateur WHERE username = ? OR email = ?");
         $stmt->execute([$user, $email]);
         if ($stmt->fetch()) {
             $message = "<div class='alert alert-danger shadow-sm'>❌ Erreur : Le nom d'utilisateur ou l'email est déjà utilisé.</div>";
         } else {
             $pass_hache = password_hash($pass, PASSWORD_DEFAULT);
-            $sql = "INSERT INTO utilisateurs (nom_complet, username, email, password, role) VALUES (?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO Utilisateur (nom_complet, username, email, password, role) VALUES (?, ?, ?, ?, ?)";
             $stmt = $pdo->prepare($sql);
             try {
                 $stmt->execute([$nom, $user, $email, $pass_hache, $role]);
@@ -45,19 +45,41 @@ if ($isAdmin && isset($_POST['btn_new_user'])) {
 
 // 1. Calcul des statistiques
 // A. Nombre de produits total
-$nb_produits = $pdo->query("SELECT COUNT(*) FROM produits")->fetchColumn();
+$nb_produits = $pdo->query("SELECT COUNT(*) FROM Produit")->fetchColumn();
 
 // B. Alertes de stock (Stock Total <= Seuil Alerte)
-$sql_alerte = "SELECT COUNT(*) FROM produits WHERE stock_total <= seuil_alerte AND stock_total > 0";
-$nb_alerte = $pdo->query($sql_alerte)->fetchColumn();
+// On doit calculer la somme des lots pour chaque produit
+$sql_alerte = "SELECT COUNT(*) FROM (
+                SELECT p.id_produit, p.seuil_alerte, COALESCE(SUM(l.quantite_actuelle), 0) as total 
+                FROM Produit p 
+                LEFT JOIN StockLot l ON p.id_produit = l.id_produit 
+                GROUP BY p.id_produit
+              ) as stocks 
+              WHERE total <= seuil_alerte AND total > 0";
+$nb_alerte = $pdo->query($sql_alerte)->fetchColumn() ?: 0;
 
 // C. Ruptures de stock (Stock Total = 0)
-$nb_rupture = $pdo->query("SELECT COUNT(*) FROM produits WHERE stock_total = 0")->fetchColumn();
+$sql_rupture = "SELECT COUNT(*) FROM (
+                SELECT p.id_produit, COALESCE(SUM(l.quantite_actuelle), 0) as total 
+                FROM Produit p 
+                LEFT JOIN StockLot l ON p.id_produit = l.id_produit 
+                GROUP BY p.id_produit
+              ) as stocks 
+              WHERE total = 0";
+$nb_rupture = $pdo->query($sql_rupture)->fetchColumn() ?: 0;
 
 // D. Produits périmés ou bientôt périmés (on inclut les lots à moins de 14 jours de leur date d'expiration)
-$nb_perime = $pdo->query("SELECT COUNT(*) FROM stock_lots WHERE date_expiration <= DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) AND quantite_actuelle > 0")->fetchColumn();
+$nb_perime = $pdo->query("SELECT COUNT(*) FROM StockLot WHERE date_expiration <= DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) AND quantite_actuelle > 0")->fetchColumn();
 // Récupère des lots périmés/critiques (détails pour affichage)
-$expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, f.nom_societe FROM stock_lots l JOIN produits p ON l.id_produit = p.id_produit LEFT JOIN fournisseurs f ON l.id_fournisseur = f.id_fournisseur WHERE l.date_expiration <= DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) AND l.quantite_actuelle > 0 ORDER BY l.date_expiration ASC LIMIT 10")->fetchAll();
+$expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, part.nom_entite, c.date_commande
+                             FROM StockLot l 
+                             JOIN Produit p ON l.id_produit = p.id_produit 
+                             LEFT JOIN CommandeDetail cd ON l.id_cmd_det = cd.id_cmd_det
+                             LEFT JOIN Commande c ON cd.id_commande = c.id_commande
+                             LEFT JOIN Partenaire part ON c.id_partenaire = part.id_partenaire
+                             WHERE l.date_expiration <= DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) 
+                             AND l.quantite_actuelle > 0 
+                             ORDER BY l.date_expiration ASC LIMIT 10")->fetchAll();
 ?>
 
 <?php include '../includes/sidebar.php'; ?>
@@ -126,12 +148,19 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, f.nom
                 </thead>
                 <tbody>
                     <?php
-                    $list_alerte = $pdo->query("SELECT * FROM produits WHERE stock_total <= seuil_alerte ORDER BY stock_total ASC LIMIT 10");
+                    // Requête complexe pour récupérer les produits en alerte avec leur stock calculé
+                    $sql_list_alerte = "SELECT p.nom_medicament, p.type_produit, p.seuil_alerte, COALESCE(SUM(l.quantite_actuelle), 0) as stock_total
+                                        FROM Produit p
+                                        LEFT JOIN StockLot l ON p.id_produit = l.id_produit
+                                        GROUP BY p.id_produit, p.nom_medicament, p.type_produit, p.seuil_alerte
+                                        HAVING stock_total <= p.seuil_alerte
+                                        ORDER BY stock_total ASC LIMIT 10";
+                    $list_alerte = $pdo->query($sql_list_alerte);
                     while($row = $list_alerte->fetch()) {
                         $status = ($row['stock_total'] == 0) ? '<span class="badge bg-danger">Rupture</span>' : '<span class="badge bg-warning">Critique</span>';
                         echo "<tr>
-                                <td>{$row['nom_medicament']}</td>
-                                <td>{$row['type_produit']}</td>
+                                <td>" . htmlspecialchars($row['nom_medicament']) . "</td>
+                                <td>" . htmlspecialchars($row['type_produit']) . "</td>
                                 <td>{$row['stock_total']}</td>
                                 <td>{$row['seuil_alerte']}</td>
                                 <td>$status</td>
@@ -178,8 +207,12 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, f.nom
                             <td><?= htmlspecialchars($lot['num_lot']) ?></td>
                             <td><?= $lot['quantite_actuelle'] ?></td>
                             <td><?= $lot['date_expiration'] ?></td>
-                            <td><?= isset($lot['nom_societe']) ? htmlspecialchars($lot['nom_societe']) : '-' ?></td>
-                            <td><?= $lot['date_enregistrement'] ?></td>
+                            <td><?= isset($lot['nom_entite']) ? htmlspecialchars($lot['nom_entite']) : '-' ?></td>
+                            <td>
+                                <?php 
+                                echo isset($lot['date_commande']) ? date('d/m/Y', strtotime($lot['date_commande'])) : '-';
+                                ?>
+                            </td>
                             <td><?= $status ?></td>
                         </tr>
                     <?php endforeach; ?>

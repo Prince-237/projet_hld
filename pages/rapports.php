@@ -1,5 +1,7 @@
-<?php 
-require_once('config/db.php'); 
+<?php
+require_once '../config/db.php';
+session_start();
+if (!isset($_SESSION['user_id'])) { header("Location: ../index.php"); exit(); }
 include '../includes/sidebar.php';
 
 // On récupère les dates depuis le formulaire, sinon par défaut les 30 derniers jours
@@ -7,10 +9,18 @@ $date_debut = $_POST['date_debut'] ?? date('Y-m-d', strtotime('-30 days'));
 $date_fin = $_POST['date_fin'] ?? date('Y-m-d');
 
 // Requête pour le graphique des sorties par jour sur la période
-$sql = "SELECT DATE(date_sortie) as jour, SUM(total_prix) as total 
-        FROM sorties 
-        WHERE date_sortie BETWEEN :debut AND :fin
-        GROUP BY DATE(date_sortie)";
+// Adaptation pour nouvelle BDD :
+// 1. On utilise TransfertDetail (td) joint à StockLot (l) et Produit (p) pour avoir les prix.
+// 2. On extrait la date depuis num_bordereau (TR-20260318...) car Transfert n'a pas de colonne date_transfert explicite dans newSql.sql
+$sql = "SELECT DATE(STR_TO_DATE(SUBSTRING(t.num_bordereau, 4, 8), '%Y%m%d')) as jour, 
+               SUM(td.quantite_transfert * (l.prix_achat_ttc * (1 + (p.marge_pourcentage / 100)))) as total 
+        FROM Transfert t
+        JOIN TransfertDetail td ON t.id_transfert = td.id_transfert
+        JOIN StockLot l ON td.id_lot = l.id_lot
+        JOIN Produit p ON l.id_produit = p.id_produit
+        WHERE STR_TO_DATE(SUBSTRING(t.num_bordereau, 4, 8), '%Y%m%d') BETWEEN :debut AND :fin
+        GROUP BY jour";
+        
 $stmt = $pdo->prepare($sql);
 $stmt->execute([':debut' => $date_debut, ':fin' => $date_fin]);
 $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -59,5 +69,4 @@ new Chart(ctx, {
     }
 });
 </script>
-
-<?php include('includes/footer.php'); ?>
+<?php include '../includes/footer.php'; ?>

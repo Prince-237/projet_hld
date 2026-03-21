@@ -13,6 +13,12 @@ function isActive($page) {
     global $current_page;
     return ($current_page === $page) ? 'active' : '';
 }
+
+$achats_pages = ['entrees.php', 'sorties.php'];
+$is_achats_active = in_array($current_page, $achats_pages);
+
+$dons_pages = ['dons.php', 'sorties_dons.php'];
+$is_dons_active = in_array($current_page, $dons_pages);
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -44,11 +50,39 @@ function isActive($page) {
                 <li class="nav-item">
                     <a class="nav-link text-white <?= ($current_page == 'produits.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/produits.php">Medicaments</a>
                 </li>
+                <!-- Gestion des Achats -->
                 <li class="nav-item">
-                    <a class="nav-link text-white <?= ($current_page == 'entrees.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/entrees.php">Entrees</a>
+                    <a class="nav-link text-white d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#achatsSubmenu" role="button" aria-expanded="<?= $is_achats_active ? 'true' : 'false' ?>" aria-controls="achatsSubmenu">
+                        <span>Gestion des Achats</span>
+                        <i class="bi bi-chevron-down" style="font-size: 0.8rem;"></i>
+                    </a>
+                    <div class="collapse <?= $is_achats_active ? 'show' : '' ?>" id="achatsSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            <li class="nav-item">
+                                <a class="nav-link text-white <?= ($current_page == 'entrees.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/entrees.php">Commande - Entrees</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-white <?= ($current_page == 'sorties.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/sorties.php">Sorties Achats</a>
+                            </li>
+                        </ul>
+                    </div>
                 </li>
+                <!-- Gestion des Dons -->
                 <li class="nav-item">
-                    <a class="nav-link text-white <?= ($current_page == 'sorties.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/sorties.php">Sorties</a>
+                    <a class="nav-link text-white d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#donsSubmenu" role="button" aria-expanded="<?= $is_dons_active ? 'true' : 'false' ?>" aria-controls="donsSubmenu">
+                        <span>Gestion des Dons</span>
+                        <i class="bi bi-chevron-down" style="font-size: 0.8rem;"></i>
+                    </a>
+                    <div class="collapse <?= $is_dons_active ? 'show' : '' ?>" id="donsSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            <li class="nav-item">
+                                <a class="nav-link text-white <?= ($current_page == 'dons.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/dons.php">Réception Dons</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-white <?= ($current_page == 'sorties_dons.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/sorties_dons.php">Sorties Dons</a>
+                            </li>
+                        </ul>
+                    </div>
                 </li>
                 <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
                 <li class="nav-item">

@@ -11,7 +11,7 @@ if (!$token) {
 $token_hash = hash('sha256', $token);
 
 // Vérifier le token
-$stmt = $pdo->prepare("SELECT * FROM utilisateurs WHERE reset_token_hash = ? AND reset_token_expires_at > NOW()");
+$stmt = $pdo->prepare("SELECT * FROM Utilisateur WHERE reset_token_hash = ? AND reset_token_expires_at > NOW()");
 $stmt->execute([$token_hash]);
 $user = $stmt->fetch();
 
@@ -34,7 +34,7 @@ if ($token_valid && isset($_POST['btn_new_pass'])) {
         $pass_hache = password_hash($pass1, PASSWORD_DEFAULT);
 
         // Mise à jour du mot de passe et suppression du token
-        $sql = "UPDATE utilisateurs SET password = ?, reset_token_hash = NULL, reset_token_expires_at = NULL WHERE id_user = ?";
+        $sql = "UPDATE Utilisateur SET password = ?, reset_token_hash = NULL, reset_token_expires_at = NULL WHERE id_user = ?";
         $stmt = $pdo->prepare($sql);
         
         if ($stmt->execute([$pass_hache, $user['id_user']])) {

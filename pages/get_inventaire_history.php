@@ -24,10 +24,10 @@ if ($year == 0 || $month == 0) {
 try {
     // 1. Chercher l'entête de l'inventaire pour ce mois/année (statut traité uniquement)
     $stmt = $pdo->prepare("SELECT i.id_inventaire, i.date_inventaire, i.statut, u.nom_complet
-        FROM inventaires i
-        JOIN utilisateurs u ON i.id_user = u.id_user
-        WHERE YEAR(i.date_inventaire) = ? 
-        AND MONTH(i.date_inventaire) = ? 
+        FROM Inventaire i
+        JOIN Utilisateur u ON i.id_user = u.id_user
+        WHERE YEAR(i.date_inventaire) = ?
+        AND MONTH(i.date_inventaire) = ?
         AND i.statut = 'traité'
         ORDER BY i.id_inventaire DESC LIMIT 1");
     $stmt->execute([$year, $month]);
@@ -41,10 +41,11 @@ try {
 
     // 2. Si inventaire trouvé, récupérer les détails (produits, écarts, etc.)
     $stmtDetails = $pdo->prepare("
-        SELECT d.stock_theorique, d.stock_physique, d.ecart, 
+        SELECT d.stock_theorique, d.stock_physique, d.ecart,
                p.nom_medicament, p.type_produit, p.seuil_alerte
-        FROM inventaire_details d
-        JOIN produits p ON d.id_produit = p.id_produit
+        FROM InventaireDetail d
+        JOIN StockLot l ON d.id_lot = l.id_lot
+        JOIN Produit p ON l.id_produit = p.id_produit
         WHERE d.id_inventaire = ?
         ORDER BY p.nom_medicament ASC
     ");

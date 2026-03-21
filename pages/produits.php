@@ -8,7 +8,7 @@ if (!isset($_SESSION['user_id'])) {
 $isAdmin = ($_SESSION['role'] === 'admin');
 
 // Récupérer toutes les catégories pour les listes déroulantes
-$categories = $pdo->query("SELECT * FROM product_categories ORDER BY nom_categorie ASC, forme ASC")->fetchAll(PDO::FETCH_ASSOC);
+$categories = $pdo->query("SELECT * FROM ProductCategory ORDER BY nom_categorie ASC, forme ASC")->fetchAll(PDO::FETCH_ASSOC);
 
 // ======================================
 // AJOUTER UNE CATÉGORIE (nouveau)
@@ -18,11 +18,11 @@ if ($isAdmin && isset($_POST['btn_ajouter_categorie'])) {
     $forme = htmlspecialchars(trim($_POST['forme']));
     $dosage = htmlspecialchars(trim($_POST['dosage']));
     
-    $stmt = $pdo->prepare("INSERT INTO product_categories (nom_categorie, forme, dosage) VALUES (?, ?, ?)");
+    $stmt = $pdo->prepare("INSERT INTO ProductCategory (nom_categorie, forme, dosage) VALUES (?, ?, ?)");
     if ($stmt->execute([$nom_categorie, $forme, $dosage])) {
         $message_categorie = "<div class='alert alert-success'>Catégorie ajoutée avec succès !</div>";
         // Recharger les catégories
-        $categories = $pdo->query("SELECT * FROM product_categories ORDER BY nom_categorie ASC, forme ASC")->fetchAll(PDO::FETCH_ASSOC);
+        $categories = $pdo->query("SELECT * FROM ProductCategory ORDER BY nom_categorie ASC, forme ASC")->fetchAll(PDO::FETCH_ASSOC);
     } else {
         $message_categorie = "<div class='alert alert-danger'>Erreur lors de l'ajout de la catégorie.</div>";
     }
@@ -40,12 +40,12 @@ if ($isAdmin && isset($_POST['btn_ajouter_produit'])) {
     $seuil = !empty($_POST['seuil_alerte']) ? (int)$_POST['seuil_alerte'] : 0;
 
     // VÉRIFICATION CATÉGORIE (comme dans le diagramme de séquence)
-    $checkCategorie = $pdo->prepare("SELECT id_categorie FROM product_categories WHERE id_categorie = ?");
+    $checkCategorie = $pdo->prepare("SELECT id_categorie FROM ProductCategory WHERE id_categorie = ?");
     $checkCategorie->execute([$id_categorie]);
     
     if ($checkCategorie->fetch()) {
-        // Catégorie OK → INSERT PRODUIT
-        $stmt = $pdo->prepare("INSERT INTO produits (id_categorie, nom_medicament, type_produit, prix_unitaire, marge_pourcentage, seuil_alerte, stock_total) VALUES (?, ?, ?, ?, ?, ?, 0)");
+        // Catégorie OK → INSERT PRODUIT (On ne gère plus stock_total ici)
+        $stmt = $pdo->prepare("INSERT INTO Produit (id_categorie, nom_medicament, type_produit, prix_unitaire, marge_pourcentage, seuil_alerte) VALUES (?, ?, ?, ?, ?, ?)");
         if ($stmt->execute([$id_categorie, $nom, $type_produit, $prix_unitaire, $marge, $seuil])) {
             $message = "<div class='alert alert-success'>Produit ajouté avec succès !</div>";
         } else {
@@ -65,14 +65,14 @@ if ($isAdmin && isset($_POST['btn_update_produit'])) {
     $marge = (float)$_POST['marge_pourcentage'];
     $seuil = (int)$_POST['seuil_alerte'];
 
-    $stmt = $pdo->prepare("UPDATE produits SET nom_medicament = ?, prix_unitaire = ?, marge_pourcentage = ?, seuil_alerte = ? WHERE id_produit = ?");
+    $stmt = $pdo->prepare("UPDATE Produit SET nom_medicament = ?, prix_unitaire = ?, marge_pourcentage = ?, seuil_alerte = ? WHERE id_produit = ?");
     $stmt->execute([$nom, $prix_unitaire, $marge, $seuil, $id]);
     $message = "<div class='alert alert-success'>Produit modifié avec succès.</div>";
 }
 
 if ($isAdmin && isset($_POST['btn_delete_produit'])) {
     $id = (int)$_POST['id_produit'];
-    $checkLots = $pdo->prepare("SELECT COUNT(*) FROM stock_lots WHERE id_produit = ?");
+    $checkLots = $pdo->prepare("SELECT COUNT(*) FROM StockLot WHERE id_produit = ?");
     $checkLots->execute([$id]);
     $hasLots = $checkLots->fetchColumn() > 0;
 
@@ -80,7 +80,7 @@ if ($isAdmin && isset($_POST['btn_delete_produit'])) {
         $message = "<div class='alert alert-danger'>Suppression impossible : des lots existent pour ce médicament.</div>";
     } else {
         try {
-            $stmt = $pdo->prepare("DELETE FROM produits WHERE id_produit = ?");
+            $stmt = $pdo->prepare("DELETE FROM Produit WHERE id_produit = ?");
             $stmt->execute([$id]);
             $message = "<div class='alert alert-success'>Produit supprimé.</div>";
         } catch (PDOException $e) {
@@ -97,11 +97,13 @@ if ($isAdmin && isset($_POST['btn_delete_produit'])) {
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
 $typeFilter = isset($_GET['type']) && in_array($_GET['type'], ['Medicament', 'Laboratoire']) ? $_GET['type'] : 'Medicament';
 
+// Requête avec calcul dynamique du stock via sous-requête
+// On regarde le type de partenaire dans la commande liée au lot pour distinguer Achat/Don
 $sql_base = "SELECT p.*, c.nom_categorie, c.forme, c.dosage,
-                COALESCE((SELECT SUM(sl.quantite_actuelle) FROM stock_lots sl WHERE sl.id_produit = p.id_produit AND sl.source_provenance = 'Achat'), 0) AS stock_achat,
-                COALESCE((SELECT SUM(sl.quantite_actuelle) FROM stock_lots sl WHERE sl.id_produit = p.id_produit AND sl.source_provenance = 'Don'), 0) AS stock_don
-             FROM produits p 
-             JOIN product_categories c ON p.id_categorie = c.id_categorie";
+                COALESCE((SELECT SUM(sl.quantite_actuelle) FROM StockLot sl LEFT JOIN CommandeDetail cd ON sl.id_cmd_det = cd.id_cmd_det LEFT JOIN Commande cmd ON cd.id_commande = cmd.id_commande LEFT JOIN Partenaire part ON cmd.id_partenaire = part.id_partenaire WHERE sl.id_produit = p.id_produit AND part.type = 'Fournisseur'), 0) AS stock_achat,
+                COALESCE((SELECT SUM(sl.quantite_actuelle) FROM StockLot sl LEFT JOIN CommandeDetail cd ON sl.id_cmd_det = cd.id_cmd_det LEFT JOIN Commande cmd ON cd.id_commande = cmd.id_commande LEFT JOIN Partenaire part ON cmd.id_partenaire = part.id_partenaire WHERE sl.id_produit = p.id_produit AND part.type = 'Don'), 0) AS stock_don
+             FROM Produit p 
+             JOIN ProductCategory c ON p.id_categorie = c.id_categorie";
 
 $whereClauses = ['p.type_produit = ?'];
 $params = [$typeFilter];
@@ -112,7 +114,7 @@ if ($search !== '') {
 }
 
 $whereSql = ' WHERE ' . implode(' AND ', $whereClauses);
-$stmt = $pdo->prepare("$sql_base$whereSql ORDER BY p.stock_total DESC");
+$stmt = $pdo->prepare("$sql_base$whereSql ORDER BY p.nom_medicament ASC");
 $stmt->execute($params);
 $produits = $stmt->fetchAll();
 
@@ -173,9 +175,11 @@ include '../includes/sidebar.php';
         </thead>
         <tbody>
             <?php foreach($produits as $p): 
-                $stock = (int)$p['stock_total'];
+                $stock_achat = (int)$p['stock_achat'];
+                $stock_don = (int)$p['stock_don'];
+                $stock_total = $stock_achat + $stock_don;
                 $seuil = isset($p['seuil_alerte']) ? (int)$p['seuil_alerte'] : 0;
-                $rowClass = $stock === 0 ? 'table-danger text-white' : ($stock <= $seuil ? 'table-warning' : '');
+                $rowClass = $stock_total === 0 ? 'table-danger text-white' : ($stock_total <= $seuil ? 'table-warning' : '');
             ?>
                 <tr class="<?= $rowClass ?>">
                     <td><?= htmlspecialchars($p['nom_medicament']) ?></td>
@@ -183,9 +187,9 @@ include '../includes/sidebar.php';
                     <td><?= number_format($p['prix_unitaire'] ?? 0, 2) ?> FCFA</td>
                     <td class="text-center"><?= $p['marge_pourcentage'] ?>%</td>
                     <td class="text-center"><?= $seuil ?></td>
-                    <td class="text-center"><?= $p['stock_achat'] ?></td>
-                    <td class="text-center"><?= $p['stock_don'] ?></td>
-                    <td class="text-center"><?= $p['stock_total'] ?></td>
+                    <td class="text-center"><?= $stock_achat ?></td>
+                    <td class="text-center"><?= $stock_don ?></td>
+                    <td class="text-center fw-bold"><?= $stock_total ?></td>
                     <td class="text-nowrap">
                         <?php if($isAdmin): ?>
                             <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditProduit"

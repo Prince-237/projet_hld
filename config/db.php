@@ -1,7 +1,7 @@
 <?php
 // Paramètres de connexion
 $host = 'localhost';
-$dbname = 'laquintinie_projet'; // Nom exact de ta BDD
+$dbname = 'laquintinie_projet_1'; // Nom exact de ta BDD
 $user = 'root';
 $pass = ''; // Vide par défaut sur XAMPP
 

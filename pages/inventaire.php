@@ -13,12 +13,15 @@ $message = '';
 // --- ACTION : RECALCUL SEUIL ---
 if ($isAdmin && isset($_POST['btn_recalcul_seuil'])) {
     // Calcul : Somme des sorties des 90 derniers jours / 3
-    $sql = "UPDATE produits p SET seuil_alerte = CEIL((
-        SELECT IFNULL(SUM(s.quantite_sortie), 0)
-        FROM sorties s 
-        JOIN stock_lots l ON s.id_lot = l.id_lot
-        WHERE l.id_produit = p.id_produit 
-        AND s.date_sortie >= DATE_SUB(NOW(), INTERVAL 3 MONTH)
+    // On utilise le num_bordereau (TR-YYYYMMDD...) pour filtrer la date car Transfert n'a pas de colonne date indexée simple
+    $sql = "UPDATE Produit p SET seuil_alerte = CEIL((
+        SELECT IFNULL(SUM(td.quantite_transfert), 0)
+        FROM TransfertDetail td
+        JOIN Transfert t ON td.id_transfert = t.id_transfert
+        JOIN StockLot l ON td.id_lot = l.id_lot
+        WHERE l.id_produit = p.id_produit
+        -- On filtre grossièrement sur le bordereau qui commence par TR-YYYYMMDD
+        AND t.num_bordereau >= CONCAT('TR-', DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 3 MONTH), '%Y%m%d'), '000000')
     ) / 3)";
     
     try {
@@ -34,7 +37,7 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'process_inventory
     $id_inventaire = (int)$_GET['id'];
 
     // Vérifier que l'inventaire est bien 'en cours'
-    $stmtCheck = $pdo->prepare("SELECT statut, date_inventaire FROM inventaires WHERE id_inventaire = ?");
+    $stmtCheck = $pdo->prepare("SELECT statut, date_inventaire FROM Inventaire WHERE id_inventaire = ?");
     $stmtCheck->execute([$id_inventaire]);
     $inventory_to_process = $stmtCheck->fetch();
 
@@ -42,34 +45,37 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'process_inventory
         $pdo->beginTransaction();
         try {
             // Récupérer tous les détails de cet inventaire
-            $details = $pdo->prepare("SELECT * FROM inventaire_details WHERE id_inventaire = ?");
+            $details = $pdo->prepare("SELECT * FROM InventaireDetail WHERE id_inventaire = ?");
             $details->execute([$id_inventaire]);
 
             while ($detail = $details->fetch()) {
                 $ecart = (int)$detail['ecart'];
-                $id_produit = (int)$detail['id_produit'];
-                $stock_physique = (int)$detail['stock_physique'];
+                $id_lot = (int)$detail['id_lot'];
+                // Note : Dans la nouvelle structure, l'inventaire se fait par LOT (InventaireDetail a id_lot, pas id_produit direct)
+                // Si votre CSV ou saisie manuelle était par produit, il faudra adapter. 
+                // Ici on suppose que InventaireDetail pointe vers StockLot comme défini dans newSql.sql
 
                 if ($ecart != 0) {
-                    // Mettre à jour le stock total du produit
-                    $pdo->prepare("UPDATE produits SET stock_total = ? WHERE id_produit = ?")->execute([$stock_physique, $id_produit]);
-                    // Logique d'ajustement des lots
-                    if ($ecart > 0) { // Surplus
-                        $pdo->prepare("UPDATE stock_lots SET quantite_actuelle = quantite_actuelle + ? WHERE id_produit = ? ORDER BY date_expiration DESC LIMIT 1")->execute([$ecart, $id_produit]);
-                    } else { // Manque
-                        $a_retirer = abs($ecart);
-                        $lots = $pdo->prepare("SELECT id_lot, quantite_actuelle FROM stock_lots WHERE id_produit = ? AND quantite_actuelle > 0 ORDER BY date_expiration ASC");
-                        $lots->execute([$id_produit]);
-                        while (($lot = $lots->fetch()) && $a_retirer > 0) {
-                            $retrait_sur_lot = min($a_retirer, $lot['quantite_actuelle']);
-                            $pdo->prepare("UPDATE stock_lots SET quantite_actuelle = quantite_actuelle - ? WHERE id_lot = ?")->execute([$retrait_sur_lot, $lot['id_lot']]);
-                            $a_retirer -= $retrait_sur_lot;
+                    // Mise à jour directe du lot concerné
+                    // Si écart positif (Surplus) : On ajoute au lot
+                    // Si écart négatif (Manque) : On retire du lot
+                    
+                    // Vérification stock négatif impossible
+                    if ($ecart < 0) {
+                        // On vérifie qu'on ne descend pas en dessous de 0
+                        $stmtLot = $pdo->prepare("SELECT quantite_actuelle FROM StockLot WHERE id_lot = ?");
+                        $stmtLot->execute([$id_lot]);
+                        $qteActuelle = $stmtLot->fetchColumn();
+                        if ($qteActuelle + $ecart < 0) {
+                             throw new Exception("Impossible de valider : le stock du lot #$id_lot deviendrait négatif.");
                         }
                     }
+
+                    $pdo->prepare("UPDATE StockLot SET quantite_actuelle = quantite_actuelle + ? WHERE id_lot = ?")->execute([$ecart, $id_lot]);
                 }
             }
             // Passer le statut de l'inventaire à 'traité'
-            $pdo->prepare("UPDATE inventaires SET statut = 'traité' WHERE id_inventaire = ?")->execute([$id_inventaire]);
+            $pdo->prepare("UPDATE Inventaire SET statut = 'traité' WHERE id_inventaire = ?")->execute([$id_inventaire]);
 
             // NOUVEAU: Supprimer les autres brouillons pour la même période pour nettoyer l'historique
             $inv_date = $inventory_to_process['date_inventaire'];
@@ -78,7 +84,7 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'process_inventory
 
             // 1. Trouver les IDs des autres brouillons à supprimer
             $stmt_to_delete = $pdo->prepare(
-                "SELECT id_inventaire FROM inventaires 
+                "SELECT id_inventaire FROM Inventaire 
                  WHERE YEAR(date_inventaire) = ? 
                  AND MONTH(date_inventaire) = ? 
                  AND statut = 'en cours' 
@@ -89,8 +95,8 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'process_inventory
 
             if (!empty($ids_to_delete)) {
                 $placeholders = implode(',', array_fill(0, count($ids_to_delete), '?'));
-                $pdo->prepare("DELETE FROM inventaire_details WHERE id_inventaire IN ($placeholders)")->execute($ids_to_delete);
-                $pdo->prepare("DELETE FROM inventaires WHERE id_inventaire IN ($placeholders)")->execute($ids_to_delete);
+                $pdo->prepare("DELETE FROM InventaireDetail WHERE id_inventaire IN ($placeholders)")->execute($ids_to_delete);
+                $pdo->prepare("DELETE FROM Inventaire WHERE id_inventaire IN ($placeholders)")->execute($ids_to_delete);
             }
 
             $pdo->commit();
@@ -110,15 +116,18 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'export') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="inventaire_' . date('Y-m-d') . '.csv"');
     $output = fopen('php://output', 'w');
-    // Entêtes du CSV
-    fputcsv($output, ['id_produit', 'nom_medicament', 'stock_theorique', 'stock_physique', 'ecart'], ';');
+    // Entêtes du CSV - On exporte par LOT maintenant pour être précis
+    fputcsv($output, ['id_lot', 'nom_medicament', 'num_lot', 'stock_theorique', 'stock_physique', 'ecart'], ';');
 
-    $produits = $pdo->query("SELECT id_produit, nom_medicament, stock_total FROM produits ORDER BY nom_medicament ASC")->fetchAll();
+    // On récupère les lots avec stock > 0
+    $sqlExp = "SELECT l.id_lot, p.nom_medicament, l.num_lot, l.quantite_actuelle 
+               FROM StockLot l JOIN Produit p ON l.id_produit = p.id_produit 
+               WHERE l.quantite_actuelle > 0 ORDER BY p.nom_medicament ASC";
+    $lots = $pdo->query($sqlExp)->fetchAll();
     $rowIndex = 2; // Excel starts at row 1 for header
-    foreach ($produits as $p) {
-        // La colonne E (5ème colonne) sera l'écart automatique calculé dans Excel
-        $formula = sprintf('=D%d-C%d', $rowIndex, $rowIndex);
-        fputcsv($output, [$p['id_produit'], $p['nom_medicament'], $p['stock_total'], '', $formula], ';');
+    foreach ($lots as $l) {
+        $formula = sprintf('=E%d-D%d', $rowIndex, $rowIndex);
+        fputcsv($output, [$l['id_lot'], $l['nom_medicament'], $l['num_lot'], $l['quantite_actuelle'], '', $formula], ';');
         $rowIndex++;
     }
     fclose($output);
@@ -138,15 +147,15 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'delete_inventaire
     $id_inv = (int)$_GET['id'];
     
     // On vérifie le statut avant de supprimer
-    $stmtCheck = $pdo->prepare("SELECT statut FROM inventaires WHERE id_inventaire = ?");
+    $stmtCheck = $pdo->prepare("SELECT statut FROM Inventaire WHERE id_inventaire = ?");
     $stmtCheck->execute([$id_inv]);
     $statut = $stmtCheck->fetchColumn();
     
     if ($statut === 'traité' || $statut === 'en cours') {
         try {
             $pdo->beginTransaction();
-            $pdo->prepare("DELETE FROM inventaire_details WHERE id_inventaire = ?")->execute([$id_inv]);
-            $pdo->prepare("DELETE FROM inventaires WHERE id_inventaire = ?")->execute([$id_inv]);
+            $pdo->prepare("DELETE FROM InventaireDetail WHERE id_inventaire = ?")->execute([$id_inv]);
+            $pdo->prepare("DELETE FROM Inventaire WHERE id_inventaire = ?")->execute([$id_inv]);
             $pdo->commit();
             $message = "<div class='alert alert-success'>L'inventaire a été supprimé avec succès.</div>";
         } catch (Exception $e) {
@@ -165,7 +174,7 @@ if ($isAdmin && isset($_POST['btn_import_inventaire'])) {
         // VERIFICATION : Un inventaire pour le mois en cours existe-t-il déjà ?
         $currentMonth = date('n');
         $currentYear = date('Y');
-        $stmtCheck = $pdo->prepare("SELECT id_inventaire, statut FROM inventaires WHERE YEAR(date_inventaire) = ? AND MONTH(date_inventaire) = ?");
+        $stmtCheck = $pdo->prepare("SELECT id_inventaire, statut FROM Inventaire WHERE YEAR(date_inventaire) = ? AND MONTH(date_inventaire) = ?");
         $stmtCheck->execute([$currentYear, $currentMonth]);
         $existing_inv = $stmtCheck->fetch();
         
@@ -180,12 +189,12 @@ if ($isAdmin && isset($_POST['btn_import_inventaire'])) {
             // Si un inventaire 'en cours' existe, on le supprime pour le remplacer
             if ($existing_inv && $existing_inv['statut'] === 'en cours') {
                 $id_to_delete = $existing_inv['id_inventaire'];
-                $pdo->prepare("DELETE FROM inventaire_details WHERE id_inventaire = ?")->execute([$id_to_delete]);
-                $pdo->prepare("DELETE FROM inventaires WHERE id_inventaire = ?")->execute([$id_to_delete]);
+                $pdo->prepare("DELETE FROM InventaireDetail WHERE id_inventaire = ?")->execute([$id_to_delete]);
+                $pdo->prepare("DELETE FROM Inventaire WHERE id_inventaire = ?")->execute([$id_to_delete]);
             }
 
             // 1. Créer l'enregistrement de l'inventaire parent avec le statut 'en cours'
-            $stmt = $pdo->prepare("INSERT INTO inventaires (date_inventaire, id_user, statut) VALUES (NOW(), ?, 'en cours')");
+            $stmt = $pdo->prepare("INSERT INTO Inventaire (date_inventaire, id_user, statut) VALUES (NOW(), ?, 'en cours')");
             $stmt->execute([$_SESSION['user_id']]);
             $id_inventaire = $pdo->lastInsertId();
 
@@ -200,34 +209,30 @@ if ($isAdmin && isset($_POST['btn_import_inventaire'])) {
                 // Ignorer les lignes vides
                 if ($data === [null] || empty($data)) continue;
 
-                // Vérification du nombre de colonnes et du type (Entiers uniquement)
-                if (count($data) < 4) throw new Exception("Erreur ligne $ligne : Format invalide (colonnes manquantes).");
+                // Format attendu CSV : id_lot; nom; num_lot; stock_theorique; stock_physique; ecart
+                if (count($data) < 5) throw new Exception("Erreur ligne $ligne : Format invalide (colonnes manquantes).");
                 
-                $csv_id = trim($data[0]);
-                $csv_qte = trim($data[3]);
+                $csv_id_lot = trim($data[0]);
+                $csv_qte = trim($data[4]); // stock_physique is at index 4
 
-                if (!ctype_digit($csv_id)) throw new Exception("Erreur ligne $ligne : L'ID '$csv_id' n'est pas valide. Uniquement des chiffres entiers sont acceptés.");
+                if (!ctype_digit($csv_id_lot)) throw new Exception("Erreur ligne $ligne : L'ID Lot '$csv_id_lot' n'est pas valide.");
                 if (!ctype_digit($csv_qte)) throw new Exception("Erreur ligne $ligne : La quantité '$csv_qte' n'est pas valide. Uniquement des entiers positifs sont acceptés.");
 
-                $id_produit = (int)$csv_id;
+                $id_lot = (int)$csv_id_lot;
                 $stock_physique = (int)$csv_qte;
 
-                // Récupérer le stock théorique actuel de la BDD
-                $stmtProd = $pdo->prepare("SELECT stock_total FROM produits WHERE id_produit = ?");
-                $stmtProd->execute([$id_produit]);
-                $stock_theorique_db = $stmtProd->fetchColumn();
+                // Récupérer le stock théorique actuel de la BDD (table StockLot)
+                $stmtLot = $pdo->prepare("SELECT quantite_actuelle FROM StockLot WHERE id_lot = ?");
+                $stmtLot->execute([$id_lot]);
+                $stock_theorique_db = $stmtLot->fetchColumn();
 
-                // Blocage si le produit n'existe pas (Tentative d'ajout manuel par l'utilisateur)
                 if ($stock_theorique_db === false) {
-                    throw new Exception("Erreur ligne $ligne : Le produit ID $id_produit est inconnu dans la base. Vous ne pouvez pas ajouter de nouveaux produits via ce fichier.");
+                    throw new Exception("Erreur ligne $ligne : Le lot ID $id_lot est inconnu.");
                 }
 
-                $ecart = $stock_physique - $stock_theorique_db;
-
                 // 2. Enregistrer le détail de la ligne d'inventaire
-
-                $stmtDetail = $pdo->prepare("INSERT INTO inventaire_details (id_inventaire, id_produit, stock_theorique, stock_physique, ecart) VALUES (?, ?, ?, ?, ?)");
-                $stmtDetail->execute([$id_inventaire, $id_produit, $stock_theorique_db, $stock_physique, $ecart]);
+                $stmtDetail = $pdo->prepare("INSERT INTO InventaireDetail (id_inventaire, id_lot, stock_theorique, stock_physique) VALUES (?, ?, ?, ?)");
+                $stmtDetail->execute([$id_inventaire, $id_lot, $stock_theorique_db, $stock_physique]);
 
             }
             fclose($file);
@@ -249,7 +254,7 @@ if ($isAdmin && isset($_POST['btn_save_manual_inventaire'])) {
     // 1. Vérification mois en cours (même logique que l'import)
     $currentMonth = date('n');
     $currentYear = date('Y');
-    $stmtCheck = $pdo->prepare("SELECT id_inventaire, statut FROM inventaires WHERE YEAR(date_inventaire) = ? AND MONTH(date_inventaire) = ?");
+    $stmtCheck = $pdo->prepare("SELECT id_inventaire, statut FROM Inventaire WHERE YEAR(date_inventaire) = ? AND MONTH(date_inventaire) = ?");
     $stmtCheck->execute([$currentYear, $currentMonth]);
     $existing_inv = $stmtCheck->fetch();
     
@@ -261,33 +266,33 @@ if ($isAdmin && isset($_POST['btn_save_manual_inventaire'])) {
             // Si un inventaire 'en cours' existe, on le supprime pour le remplacer
             if ($existing_inv && $existing_inv['statut'] === 'en cours') {
                 $id_to_delete = $existing_inv['id_inventaire'];
-                $pdo->prepare("DELETE FROM inventaire_details WHERE id_inventaire = ?")->execute([$id_to_delete]);
-                $pdo->prepare("DELETE FROM inventaires WHERE id_inventaire = ?")->execute([$id_to_delete]);
+                $pdo->prepare("DELETE FROM InventaireDetail WHERE id_inventaire = ?")->execute([$id_to_delete]);
+                $pdo->prepare("DELETE FROM Inventaire WHERE id_inventaire = ?")->execute([$id_to_delete]);
             }
 
             // Création de l'entête avec statut 'en cours'
-            $stmt = $pdo->prepare("INSERT INTO inventaires (date_inventaire, id_user, statut) VALUES (NOW(), ?, 'en cours')");
+            $stmt = $pdo->prepare("INSERT INTO Inventaire (date_inventaire, id_user, statut) VALUES (NOW(), ?, 'en cours')");
             $stmt->execute([$_SESSION['user_id']]);
             $id_inventaire = $pdo->lastInsertId();
 
-            // Traitement des lignes (On attend un tableau stocks[id_produit] = quantite)
+            // Traitement des lignes (On attend un tableau stocks[id_lot] = quantite)
             if (isset($_POST['stocks']) && is_array($_POST['stocks'])) {
-                foreach ($_POST['stocks'] as $id_prod => $qty_physique) {
-                    $id_prod = (int)$id_prod;
+                foreach ($_POST['stocks'] as $id_lot => $qty_physique) {
+                    $id_lot = (int)$id_lot;
                     $qty_physique = (int)$qty_physique;
 
                     // Récupérer stock théorique
-                    $stmtProd = $pdo->prepare("SELECT stock_total FROM produits WHERE id_produit = ?");
-                    $stmtProd->execute([$id_prod]);
-                    $stock_theo = $stmtProd->fetchColumn();
+                    $stmtLot = $pdo->prepare("SELECT quantite_actuelle FROM StockLot WHERE id_lot = ?");
+                    $stmtLot->execute([$id_lot]);
+                    $stock_theo = $stmtLot->fetchColumn();
                     if ($stock_theo === false) continue;
 
-                    $ecart = $qty_physique - $stock_theo;
-
                     // Enregistrement détail
-                    $pdo->prepare("INSERT INTO inventaire_details (id_inventaire, id_produit, stock_theorique, stock_physique, ecart) VALUES (?, ?, ?, ?, ?)")
-                        ->execute([$id_inventaire, $id_prod, $stock_theo, $qty_physique, $ecart]);
-
+                    // Note: 'ecart' est généré automatiquement par la BDD (GENERATED ALWAYS AS) selon newSql.sql
+                    // Si ta version de MySQL ne le supporte pas, décommente le calcul PHP.
+                    // Ici on insert juste les valeurs de base.
+                    $pdo->prepare("INSERT INTO InventaireDetail (id_inventaire, id_lot, stock_theorique, stock_physique) VALUES (?, ?, ?, ?)")
+                        ->execute([$id_inventaire, $id_lot, $stock_theo, $qty_physique]);
                 }
             }
 
@@ -305,9 +310,9 @@ if ($isAdmin && isset($_POST['btn_save_manual_inventaire'])) {
 $currentMonth = date('n');
 $currentYear = date('Y');
 $stmt_active = $pdo->prepare("
-    SELECT i.id_inventaire, i.date_inventaire, i.statut, u.nom_complet 
-    FROM inventaires i
-    JOIN utilisateurs u ON i.id_user = u.id_user
+    SELECT i.id_inventaire, i.date_inventaire, i.statut, u.nom_complet
+    FROM Inventaire i
+    JOIN Utilisateur u ON i.id_user = u.id_user
     WHERE YEAR(i.date_inventaire) = ? AND MONTH(i.date_inventaire) = ? AND i.statut = 'en cours'
     ORDER BY i.id_inventaire DESC LIMIT 1
 ");
@@ -316,21 +321,24 @@ $inventaire_a_afficher = $stmt_active->fetch();
 
 // Priorité 2: Sinon, on prend le dernier inventaire 'traité'
 if (!$inventaire_a_afficher) {
-    $inventaire_a_afficher = $pdo->query("SELECT i.id_inventaire, i.date_inventaire, i.statut, u.nom_complet FROM inventaires i JOIN utilisateurs u ON i.id_user = u.id_user WHERE i.statut = 'traité' ORDER BY i.id_inventaire DESC LIMIT 1")->fetch();
+    $inventaire_a_afficher = $pdo->query("SELECT i.id_inventaire, i.date_inventaire, i.statut, u.nom_complet FROM Inventaire i JOIN Utilisateur u ON i.id_user = u.id_user WHERE i.statut = 'traité' ORDER BY i.id_inventaire DESC LIMIT 1")->fetch();
 }
 
 
 // Historique complet (pour la pop‑up)
 $inventaires_history = $pdo->query("SELECT i.id_inventaire, i.date_inventaire, i.statut, u.nom_complet
-                                  FROM inventaires i
-                                  JOIN utilisateurs u ON i.id_user = u.id_user
+                                  FROM Inventaire i
+                                  JOIN Utilisateur u ON i.id_user = u.id_user
                                   ORDER BY i.date_inventaire DESC")->fetchAll();
 
 // Récupération des produits pour la vue principale de l'état des stocks
 $produits_main_view = $pdo->query("
-    SELECT nom_medicament, type_produit, stock_total, seuil_alerte 
-    FROM produits 
-    ORDER BY (type_produit='Laboratoire'), nom_medicament ASC
+    SELECT p.nom_medicament, p.type_produit, p.seuil_alerte,
+           COALESCE(SUM(l.quantite_actuelle), 0) as stock_total
+    FROM Produit p
+    LEFT JOIN StockLot l ON p.id_produit = l.id_produit
+    GROUP BY p.id_produit
+    ORDER BY (p.type_produit='Laboratoire'), p.nom_medicament ASC
 ")->fetchAll();
 
 // Pour l'affichage des mois en français dans le modal
@@ -407,9 +415,9 @@ include '../includes/sidebar.php';
                                         <tr>
                                             <th>Produit</th>
                                             <th>Type</th>
+                                            <th>Lot</th>
                                             <th style="width: 150px;" class="text-center">Stock Théorique</th>
                                             <th style="width: 150px;" class="text-center">Stock Physique</th>
-                                            <th style="width: 100px;" class="text-center">Écart</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -417,14 +425,19 @@ include '../includes/sidebar.php';
                                         // Pré-remplir avec les données du brouillon s'il existe
                                         $draft_details = [];
                                         if ($inventaire_a_afficher && $inventaire_a_afficher['statut'] === 'en cours') {
-                                            $stmt_draft = $pdo->prepare("SELECT id_produit, stock_physique FROM inventaire_details WHERE id_inventaire = ?");
+                                            $stmt_draft = $pdo->prepare("SELECT id_lot, stock_physique FROM InventaireDetail WHERE id_inventaire = ?");
                                             $stmt_draft->execute([$inventaire_a_afficher['id_inventaire']]);
                                             foreach ($stmt_draft->fetchAll() as $row) {
-                                                $draft_details[$row['id_produit']] = $row['stock_physique'];
+                                                $draft_details[$row['id_lot']] = $row['stock_physique'];
                                             }
                                         }
 
-                                        $list_form = $pdo->query("SELECT id_produit, nom_medicament, type_produit, stock_total FROM produits ORDER BY (type_produit='Laboratoire'), nom_medicament ASC")->fetchAll();
+                                        // On liste les lots (actifs ou ayant du stock)
+                                        $list_form = $pdo->query("SELECT l.id_lot, l.num_lot, l.quantite_actuelle, p.nom_medicament, p.type_produit 
+                                                                  FROM StockLot l JOIN Produit p ON l.id_produit = p.id_produit 
+                                                                  WHERE l.quantite_actuelle > 0 
+                                                                  ORDER BY (p.type_produit='Laboratoire'), p.nom_medicament ASC")->fetchAll();
+
                                         $current_type = null;
                                         foreach ($list_form as $prod):
                                             if ($prod['type_produit'] !== $current_type) {
@@ -433,17 +446,15 @@ include '../includes/sidebar.php';
                                                 echo '<tr><td colspan="5" class="table-group-divider fw-bold bg-light-subtle">' . htmlspecialchars($display_type) . '</td></tr>';
                                             }
                                             // Quantité physique du brouillon, ou stock théorique par défaut
-                                            $phys_qty = isset($draft_details[$prod['id_produit']]) ? $draft_details[$prod['id_produit']] : $prod['stock_total'];
+                                            $phys_qty = isset($draft_details[$prod['id_lot']]) ? $draft_details[$prod['id_lot']] : $prod['quantite_actuelle'];
                                         ?>
                                             <tr>
                                                 <td><?= htmlspecialchars($prod['nom_medicament']) ?></td>
                                                 <td><?= htmlspecialchars($prod['type_produit']) ?></td>
-                                                <td class="text-center bg-light text-muted"><?= $prod['stock_total'] ?></td>
+                                                <td><small><?= htmlspecialchars($prod['num_lot']) ?></small></td>
+                                                <td class="text-center bg-light text-muted"><?= $prod['quantite_actuelle'] ?></td>
                                                 <td>
-                                                    <input type="number" name="stocks[<?= $prod['id_produit'] ?>]" class="form-control form-control-sm text-center fw-bold" value="<?= $phys_qty ?>" min="0" required data-theo="<?= $prod['stock_total'] ?>" oninput="updateEcart(this)">
-                                                </td>
-                                                <td class="text-center align-middle">
-                                                    <span class="badge bg-secondary ecart-badge">0</span>
+                                                    <input type="number" name="stocks[<?= $prod['id_lot'] ?>]" class="form-control form-control-sm text-center fw-bold" value="<?= $phys_qty ?>" min="0" required>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>

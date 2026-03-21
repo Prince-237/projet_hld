@@ -13,7 +13,7 @@ if ($isAdmin && isset($_POST['btn_ajouter_pv'])) {
         $message = "<div class='alert alert-danger'>Le nom du point de vente est obligatoire.</div>";
     } else {
         try {
-            $stmt = $pdo->prepare("INSERT INTO points_vente (nom_point_vente) VALUES (?)");
+            $stmt = $pdo->prepare("INSERT INTO PointVente (nom_point_vente) VALUES (?)");
             $stmt->execute([$nom]);
             $message = "<div class='alert alert-success'>Point de vente ajoute.</div>";
         } catch (PDOException $e) {
@@ -31,7 +31,7 @@ if ($isAdmin && isset($_POST['btn_update_pv'])) {
         $message = "<div class='alert alert-danger'>Informations invalides pour la modification.</div>";
     } else {
         try {
-            $stmt = $pdo->prepare("UPDATE points_vente SET nom_point_vente = ? WHERE id_point_vente = ?");
+            $stmt = $pdo->prepare("UPDATE PointVente SET nom_point_vente = ? WHERE id_point_vente = ?");
             $stmt->execute([$nom, $id]);
             $message = "<div class='alert alert-success'>Nom du point de vente modifie.</div>";
         } catch (PDOException $e) {
@@ -48,22 +48,28 @@ if ($isAdmin && isset($_POST['btn_delete_pv'])) {
         $message = "<div class='alert alert-warning'>Impossible de supprimer le Magasin Central.</div>";
     } else {
         // Verifier s'il y a des mouvements
-        $check = $pdo->prepare("SELECT COUNT(*) FROM sorties WHERE id_source = ? OR id_destination = ?");
+        // Avec la nouvelle table Transfert
+        $check = $pdo->prepare("SELECT COUNT(*) FROM Transfert WHERE id_source = ? OR id_destination = ?");
         $check->execute([$id, $id]);
         if ($check->fetchColumn() > 0) {
             $message = "<div class='alert alert-danger'>Suppression impossible : des mouvements existent pour ce point.</div>";
         } else {
-            $pdo->prepare("DELETE FROM points_vente WHERE id_point_vente = ?")->execute([$id]);
+            $pdo->prepare("DELETE FROM PointVente WHERE id_point_vente = ?")->execute([$id]);
             $message = "<div class='alert alert-success'>Point de vente supprime.</div>";
         }
     }
 }
 
 // Recuperation de la liste avec les statistiques (Envoye / Recu)
-$sql = "SELECT pv.*, 
-        (SELECT IFNULL(SUM(quantite_sortie), 0) FROM sorties WHERE id_source = pv.id_point_vente) as total_envoye,
-        (SELECT IFNULL(SUM(quantite_sortie), 0) FROM sorties WHERE id_destination = pv.id_point_vente) as total_recu
-        FROM points_vente pv 
+// Utilisation de sous-requêtes sur Transfert + TransfertDetail
+$sql = "SELECT pv.*,
+        (SELECT IFNULL(SUM(td.quantite_transfert), 0) 
+         FROM Transfert t JOIN TransfertDetail td ON t.id_transfert = td.id_transfert 
+         WHERE t.id_source = pv.id_point_vente) as total_envoye,
+        (SELECT IFNULL(SUM(td.quantite_transfert), 0) 
+         FROM Transfert t JOIN TransfertDetail td ON t.id_transfert = td.id_transfert 
+         WHERE t.id_destination = pv.id_point_vente) as total_recu
+        FROM PointVente pv 
         ORDER BY total_recu DESC";
 $points_vente = $pdo->query($sql)->fetchAll();
 

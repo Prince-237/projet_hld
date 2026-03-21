@@ -9,8 +9,7 @@ if (isset($_POST['btn_inscription'])) {
     $email = htmlspecialchars(trim($_POST['email']));
     $pass = $_POST['password'];
     
-    // ON FIXE LE RÔLE ICI : personne ne peut le changer depuis le formulaire
-    $role = 'user'; 
+    $role = (isset($_POST['role']) && $_POST['role'] === 'admin') ? 'admin' : 'user';
 
     if (empty($nom) || empty($user) || empty($pass) || empty($email)) {
         $message = "<div class='alert alert-warning shadow-sm'>⚠️ Veuillez remplir tous les champs.</div>";
@@ -30,16 +29,16 @@ if (isset($_POST['btn_inscription'])) {
         if (empty($message)) {
             try {
                 // On vérifie aussi que l'email ou le nom d'utilisateur n'est pas déjà pris
-                $stmt = $pdo->prepare("SELECT 1 FROM utilisateurs WHERE username = ? OR email = ?");
+                $stmt = $pdo->prepare("SELECT 1 FROM Utilisateur WHERE username = ? OR email = ?");
                 $stmt->execute([$user, $email]);
                 if ($stmt->fetch()) {
                     $message = "<div class='alert alert-danger shadow-sm'>❌ Erreur : Le nom d'utilisateur ou l'email est déjà utilisé.</div>";
                 } else {
                     $pass_hache = password_hash($pass, PASSWORD_DEFAULT);
-                    $sql = "INSERT INTO utilisateurs (nom_complet, username, email, password, role) VALUES (?, ?, ?, ?, ?)";
+                    $sql = "INSERT INTO Utilisateur (nom_complet, username, email, password, role) VALUES (?, ?, ?, ?, ?)";
                     $stmt = $pdo->prepare($sql);
                     $stmt->execute([$nom, $user, $email, $pass_hache, $role]);
-                    $message = "<div class='alert alert-success shadow-sm'>✅ Inscription réussie ! Votre compte est en mode 'Consultation'. <a href='index.php' class='fw-bold'>Se connecter</a></div>";
+                    $message = "<div class='alert alert-success shadow-sm'>✅ Inscription réussie ! <a href='index.php' class='fw-bold'>Se connecter</a></div>";
                 }
             } catch (PDOException $e) {
                 $message = "<div class='alert alert-danger shadow-sm'>❌ Erreur système lors de l'inscription.</div>";
@@ -94,11 +93,15 @@ if (isset($_POST['btn_inscription'])) {
                             <i class="bi bi-eye"></i>
                         </span>
                     </div>
-                    
-                    <div class="alert alert-light border text-muted small">
-                        ℹ️ Par défaut, votre compte sera créé avec un accès <strong>Consultation uniquement</strong>.
-                    </div>
 
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Rôle souhaité</label>
+                        <select name="role" class="form-select">
+                            <option value="user">Utilisateur (Consultation)</option>
+                            <option value="admin">Administrateur (Gestion complète)</option>
+                        </select>
+                    </div>
+                    
                     <button type="submit" name="btn_inscription" class="btn btn-primary w-100 py-2 fw-bold shadow-sm">
                         S'inscrire
                     </button>

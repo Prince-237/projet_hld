@@ -9,7 +9,7 @@ if (isset($_POST['btn_login'])) {
     $password = $_POST['password'];
 
     // 1. On cherche l'utilisateur par son login
-    $stmt = $pdo->prepare("SELECT * FROM utilisateurs WHERE username = ?");
+    $stmt = $pdo->prepare("SELECT * FROM Utilisateur WHERE username = ?");
     $stmt->execute([$username]);
     $user = $stmt->fetch();
 
@@ -107,9 +107,9 @@ if (isset($_POST['btn_login'])) {
                         Se connecter
                     </button>
 
-                    <!-- <hr class="my-4"> -->
+                    <!-- <hr class="my-4">
 
-                    <!-- <div class="text-center">
+                    <div class="text-center">
                         <p class="mb-0 text-muted">Nouveau utilisateur ?</p>
                         <a href="inscription.php" class="text-decoration-none fw-bold text-primary">Créer un compte utilisateur</a>
                     </div> -->

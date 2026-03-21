@@ -16,11 +16,30 @@ if (isset($_GET['q'])) {
 try {
     if ($q !== '') {
         $like = '%'.$q.'%';
-        $stmt = $pdo->prepare("SELECT id_produit, nom_medicament, forme, dosage, prix_unitaire, marge_pourcentage, stock_total, COALESCE(seuil_alerte,0) AS seuil_alerte FROM produits WHERE nom_medicament LIKE ? OR forme LIKE ? OR dosage LIKE ? ORDER BY nom_medicament ASC LIMIT 200");
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT p.id_produit, p.nom_medicament, c.forme, c.dosage, p.prix_unitaire, p.marge_pourcentage,
+                   COALESCE(SUM(l.quantite_actuelle), 0) as stock_total,
+                   COALESCE(p.seuil_alerte, 0) AS seuil_alerte
+            FROM Produit p
+            JOIN ProductCategory c ON p.id_categorie = c.id_categorie
+            LEFT JOIN StockLot l ON p.id_produit = l.id_produit
+            WHERE p.nom_medicament LIKE ? OR c.forme LIKE ? OR c.dosage LIKE ?
+            GROUP BY p.id_produit
+            ORDER BY p.nom_medicament ASC LIMIT 200
+        ");
         $stmt->execute([$like, $like, $like]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } else {
-        $stmt = $pdo->prepare("SELECT id_produit, nom_medicament, forme, dosage, prix_unitaire, marge_pourcentage, stock_total, COALESCE(seuil_alerte,0) AS seuil_alerte FROM produits ORDER BY nom_medicament ASC LIMIT 200");
+        $stmt = $pdo->prepare("
+            SELECT DISTINCT p.id_produit, p.nom_medicament, c.forme, c.dosage, p.prix_unitaire, p.marge_pourcentage,
+                   COALESCE(SUM(l.quantite_actuelle), 0) as stock_total,
+                   COALESCE(p.seuil_alerte, 0) AS seuil_alerte
+            FROM Produit p
+            JOIN ProductCategory c ON p.id_categorie = c.id_categorie
+            LEFT JOIN StockLot l ON p.id_produit = l.id_produit
+            GROUP BY p.id_produit
+            ORDER BY p.nom_medicament ASC LIMIT 200
+        ");
         $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

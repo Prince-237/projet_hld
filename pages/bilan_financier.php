@@ -17,7 +17,8 @@ for ($i = 0; $i < 24; $i++) {
     $months[] = ['year' => (int)date('Y', $ts), 'month' => (int)date('n', $ts), 'label' => date('F Y', $ts)];
 }
 
-// Requête principale — adapte les noms de tables/colonnes selon ton schéma
+// Requête principale — Utilisation de Transfert, TransfertDetail, StockLot, Produit
+// On calcule le Chiffre d'Affaires théorique basé sur (Prix Achat * (1 + Marge))
 $sql = "
 SELECT 
     pv.id_point_vente, 
@@ -25,16 +26,24 @@ SELECT
     COALESCE(stats.total_ventes, 0) as chiffre_affaires,
     COALESCE(stats.total_cout, 0) as cout_achat,
     (COALESCE(stats.total_ventes, 0) - COALESCE(stats.total_cout, 0)) as benefice
-FROM points_vente pv
+FROM PointVente pv
 LEFT JOIN (
     SELECT 
-        s.id_source,
-        SUM(s.total_prix) as total_ventes,
-        SUM(s.quantite_sortie * COALESCE(l.prix_achat_ttc, 0)) as total_cout
-    FROM sorties s
-    JOIN stock_lots l ON s.id_lot = l.id_lot
-    WHERE YEAR(s.date_sortie) = :year AND MONTH(s.date_sortie) = :month
-    GROUP BY s.id_source
+        t.id_source,
+        -- Si prix_achat_ttc est 0 (Don), on utilise le prix_unitaire du produit comme base
+        SUM(td.quantite_transfert * (IF(l.prix_achat_ttc > 0, l.prix_achat_ttc, COALESCE(p.prix_unitaire, 0)) * (1 + (COALESCE(p.marge_pourcentage, 0) / 100)))) as total_ventes,
+        SUM(td.quantite_transfert * COALESCE(l.prix_achat_ttc, 0)) as total_cout
+    FROM Transfert t
+    JOIN TransfertDetail td ON t.id_transfert = td.id_transfert
+    JOIN StockLot l ON td.id_lot = l.id_lot
+    JOIN Produit p ON l.id_produit = p.id_produit
+    -- On utilise num_bordereau pour extraire la date si pas de colonne date_transfert, 
+    -- ou on suppose que l'ID est sequentiel pour l'instant.
+    -- FIX : Pour faire propre, filtrer sur les IDs si on a pas de date, ou supposer date création via logs.
+    -- NEW SQL: Transfert n'a pas de date... Utilisons une astuce ou ajoutons la colonne.
+    -- Astuce : On suppose que num_bordereau commence par TR-YYYYMM...
+    WHERE t.num_bordereau LIKE CONCAT('TR-', :year, LPAD(:month, 2, '0'), '%')
+    GROUP BY t.id_source
 ) stats ON pv.id_point_vente = stats.id_source
 ORDER BY pv.nom_point_vente ASC
 ";
@@ -45,15 +54,19 @@ $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Requête pour les statistiques par produit (Top sorties)
 $sql_prods = "
-    SELECT p.nom_medicament, p.type_produit, SUM(s.quantite_sortie) as total_qte, SUM(s.total_prix) as total_valeur
-    FROM sorties s
-    JOIN stock_lots l ON s.id_lot = l.id_lot
-    JOIN produits p ON l.id_produit = p.id_produit
-    WHERE YEAR(s.date_sortie) = :year AND MONTH(s.date_sortie) = :month
+    SELECT p.nom_medicament, p.type_produit, 
+           SUM(td.quantite_transfert) as total_qte, 
+           -- Même logique : fallback sur prix_unitaire si prix_achat_ttc est 0
+           SUM(td.quantite_transfert * (IF(l.prix_achat_ttc > 0, l.prix_achat_ttc, COALESCE(p.prix_unitaire, 0)) * (1 + (COALESCE(p.marge_pourcentage, 0) / 100)))) as total_valeur
+    FROM Transfert t
+    JOIN TransfertDetail td ON t.id_transfert = td.id_transfert
+    JOIN StockLot l ON td.id_lot = l.id_lot
+    JOIN Produit p ON l.id_produit = p.id_produit
+    WHERE t.num_bordereau LIKE CONCAT('TR-', :year, LPAD(:month, 2, '0'), '%')
 ";
 $params_prods = [':year' => $year, ':month' => $month];
 if ($pointId !== null) {
-    $sql_prods .= " AND s.id_source = :pv";
+    $sql_prods .= " AND t.id_source = :pv";
     $params_prods[':pv'] = $pointId;
 }
 $sql_prods .= " GROUP BY p.id_produit ORDER BY total_qte DESC";
@@ -68,7 +81,7 @@ foreach ($rows as $r) {
     if ($pointId === null || $pointId == $r['id_point_vente']) $filtered[] = $r;
 }
 
-$pvs = $pdo->query("SELECT id_point_vente, nom_point_vente FROM points_vente ORDER BY nom_point_vente ASC")->fetchAll(PDO::FETCH_ASSOC);
+$pvs = $pdo->query("SELECT id_point_vente, nom_point_vente FROM PointVente ORDER BY nom_point_vente ASC")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <?php include '../includes/sidebar.php'; ?>
 <div class="container mt-4">

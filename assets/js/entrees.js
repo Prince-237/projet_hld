@@ -1,78 +1,145 @@
-// Fonction pour gérer l'interface en fonction de la source (Achat/Don)
-function verifierDon() {
-    const source = document.getElementById('select_source').value;
-    const inputPrix = document.getElementById('input_prix_achat');
-    const inputMarge = document.getElementById('input_marge');
-    const selectFournisseur = document.getElementById('select_fournisseur');
-    const optFournisseurs = document.getElementById('optgroup_fournisseurs');
-    const optDonateurs = document.getElementById('optgroup_donateurs');
-    
-    if (source === 'Don') {
-        // Griser et mettre à 0 les champs prix et marge
-        inputPrix.value = 0;
-        inputPrix.readOnly = true;
-        inputPrix.style.backgroundColor = "#e9ecef";
-        
-        inputMarge.value = 0;
-        inputMarge.readOnly = true;
-        inputMarge.style.backgroundColor = "#e9ecef";
-
-        // Gérer la sélection Fournisseur/Donateur
-        if (selectFournisseur) {
-            if (optFournisseurs) optFournisseurs.disabled = true;
-            if (optDonateurs) optDonateurs.disabled = false;
-            // Si un fournisseur était sélectionné, on réinitialise
-            const selectedOption = selectFournisseur.options[selectFournisseur.selectedIndex];
-            if (selectedOption && selectedOption.parentElement.id === 'optgroup_fournisseurs') {
-                selectFournisseur.value = '';
-            }
-        }
-    } else { // Cas 'Achat'
-        // Rendre les champs modifiables
-        inputPrix.readOnly = false;
-        inputPrix.style.backgroundColor = "#ffffff";
-        inputMarge.readOnly = false;
-        inputMarge.style.backgroundColor = "#ffffff";
-
-        // Restaurer les valeurs depuis le produit sélectionné
-        const selectProd = document.getElementById('select_produit_entree');
-        if(selectProd.selectedIndex > 0) {
-            const option = selectProd.options[selectProd.selectedIndex];
-            inputPrix.value = option.getAttribute('data-default-prix') || '';
-            inputMarge.value = option.getAttribute('data-marge') || '';
-        }
-
-        // Gérer la sélection Fournisseur/Donateur
-        if (selectFournisseur) {
-            if (optFournisseurs) optFournisseurs.disabled = false;
-            if (optDonateurs) optDonateurs.disabled = true;
-            // Si un donateur était sélectionné, on réinitialise
-            const selectedOption = selectFournisseur.options[selectFournisseur.selectedIndex];
-            if (selectedOption && selectedOption.parentElement.id === 'optgroup_donateurs') {
-                selectFournisseur.value = '';
-            }
-        }
-    }
-}
-
-// Gestion des changements de sélection de produit
 document.addEventListener('DOMContentLoaded', function() {
-    const selectProd = document.getElementById('select_produit_entree');
-    const inputPrix = document.getElementById('input_prix_achat');
-    const inputMarge = document.getElementById('input_marge');
-    const selectSource = document.getElementById('select_source');
 
-    if(selectProd) {
-        selectProd.addEventListener('change', function() {
-            if (selectSource.value === 'Don') return; // Ne change rien si c'est un don
+    // --- MODAL: EDIT LOT ---
+    const modalEdit = document.getElementById('modalEditLot');
+    if (modalEdit) {
+        modalEdit.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            document.getElementById('edit_id_lot').value = button.getAttribute('data-id');
+            document.getElementById('edit_num_lot').value = button.getAttribute('data-num');
+            document.getElementById('edit_exp').value = button.getAttribute('data-exp');
+            document.getElementById('edit_qte').value = button.getAttribute('data-qte');
 
-            const option = selectProd.selectedOptions[0];
-            if(option && option.value !== "") {
-                inputPrix.value = option.getAttribute('data-default-prix') || '';
-                inputMarge.value = option.getAttribute('data-marge') || '';
+            const prix = button.getAttribute('data-prix');
+            const inputPrix = document.getElementById('edit_prix');
+            inputPrix.value = prix;
+
+            // Si le prix est 0 (Don), on empêche la modification du prix pour rester cohérent
+            if (parseFloat(prix) === 0) {
+                inputPrix.readOnly = true;
+                inputPrix.classList.add('bg-light');
+            } else {
+                inputPrix.readOnly = false;
+                inputPrix.classList.remove('bg-light');
             }
         });
     }
-    // Initialisation au chargement
-    verifierDon();
+
+    // --- MODAL: RECEPTION ---
+    const modalRecv = document.getElementById('modalReception');
+    if (modalRecv) {
+        modalRecv.addEventListener('show.bs.modal', function(event) {
+            const btn = event.relatedTarget;
+            document.getElementById('recv_id_cmd').value = btn.getAttribute('data-id-cmd');
+            document.getElementById('recv_id_det').value = btn.getAttribute('data-id-det');
+            document.getElementById('recv_id_prod').value = btn.getAttribute('data-id-prod');
+            document.getElementById('recv_nom_prod').textContent = btn.getAttribute('data-nom');
+            document.getElementById('recv_qte').value = btn.getAttribute('data-qte');
+
+            const prix = btn.getAttribute('data-prix');
+            const marge = btn.getAttribute('data-marge');
+            const source = btn.getAttribute('data-source');
+
+            const inputPrix = document.getElementById('recv_prix');
+            const inputMarge = document.getElementById('recv_marge');
+
+            inputPrix.value = prix;
+            inputMarge.value = marge;
+
+            if (source === 'Don') {
+                inputPrix.readOnly = true;
+                inputPrix.value = 0;
+                inputMarge.readOnly = true;
+                inputMarge.value = 0;
+            } else {
+                inputPrix.readOnly = false;
+                inputMarge.readOnly = false;
+            }
+        });
+    }
+
+    // --- MODAL: EDIT COMMANDE (En attente) ---
+    const modalEditCmd = document.getElementById('modalEditCommande');
+    if (modalEditCmd) {
+        modalEditCmd.addEventListener('show.bs.modal', function(event) {
+            const btn = event.relatedTarget;
+            document.getElementById('cmd_edit_id').value = btn.getAttribute('data-id');
+            document.getElementById('cmd_edit_nom').value = btn.getAttribute('data-nom');
+            document.getElementById('cmd_edit_qte').value = btn.getAttribute('data-qte');
+        });
+    }
+
+    // --- FORM: NOUVELLE COMMANDE ---
+    const mainForm = document.querySelector('form button[name="btn_creer_commande"]');
+    if (!mainForm) return; // Exit if not the main form
+
+    const selectSource = document.getElementById('select_source');
+    const inputPrix = document.getElementById('input_prix_achat');
+    const inputMarge = document.getElementById('input_marge');
+    const selectPartenaire = document.getElementById('select_fournisseur');
+    const selectProduit = document.getElementById('select_produit_entree');
+
+    // Function to update partner dropdown based on source
+    function updatePartnerList() {
+        if (!selectSource || !selectPartenaire) return;
+        const isDon = selectSource.value === 'Don';
+        
+        const optGroupFours = selectPartenaire.querySelector('#optgroup_fournisseurs');
+        const optGroupDons = selectPartenaire.querySelector('#optgroup_donateurs');
+
+        if (optGroupFours) optGroupFours.style.display = isDon ? 'none' : 'block';
+        if (optGroupDons) optGroupDons.style.display = isDon ? 'block' : 'none';
+
+        const selectedOption = selectPartenaire.options[selectPartenaire.selectedIndex];
+        if (selectedOption && selectedOption.value !== "" && selectedOption.parentElement.style.display === 'none') {
+            selectPartenaire.value = '';
+        }
+    }
+
+    // Function to update price/margin fields based on source and product selection
+    function updatePriceAndMargin() {
+        if (!selectSource || !inputPrix || !inputMarge) return;
+        const isDon = selectSource.value === 'Don';
+
+        if (isDon) {
+            inputPrix.value = 0;
+            inputPrix.setAttribute('readonly', true);
+            inputPrix.classList.add('bg-light');
+
+            inputMarge.value = 0;
+            inputMarge.setAttribute('readonly', true);
+            inputMarge.classList.add('bg-light');
+        } else {
+            inputPrix.removeAttribute('readonly');
+            inputPrix.classList.remove('bg-light');
+
+            inputMarge.removeAttribute('readonly');
+            inputMarge.classList.remove('bg-light');
+
+            if (selectProduit && selectProduit.value) {
+                const selectedOption = selectProduit.options[selectProduit.selectedIndex];
+                inputPrix.value = selectedOption.getAttribute('data-default-prix') || '';
+                inputMarge.value = selectedOption.getAttribute('data-marge') || '';
+            } else {
+                // Clear if no product is selected
+                inputPrix.value = '';
+                inputMarge.value = '';
+            }
+        }
+    }
+
+    if (selectSource) {
+        selectSource.addEventListener('change', () => {
+            updatePartnerList();
+            updatePriceAndMargin();
+        });
+    }
+
+    if (selectProduit) {
+        selectProduit.addEventListener('change', updatePriceAndMargin);
+    }
+
+    // Initial state on page load
+    updatePartnerList();
+    updatePriceAndMargin();
 });
