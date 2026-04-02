@@ -9,6 +9,18 @@ $isAdmin = ($_SESSION['role'] === 'admin');
 $message = "";
 $typeFilter = isset($_GET['type']) && in_array($_GET['type'], ['Pharmacie','Laboratoire']) ? $_GET['type'] : 'Pharmacie';
 $typeProduit = ($typeFilter === 'Laboratoire') ? 'Laboratoire' : 'Medicament';
+$fournisseurFilter = $_GET['fournisseur'] ?? '';
+$agentFilter = $_GET['agent'] ?? '';
+$dateFilterStart = $_GET['dateStart'] ?? '';
+$dateFilterEnd = $_GET['dateEnd'] ?? '';
+
+$stmtFournisseurs = $pdo->prepare("SELECT id_partenaire, nom_entite FROM Partenaire WHERE type = 'Don' ORDER BY nom_entite ASC");
+$stmtFournisseurs->execute();
+$fournisseurs = $stmtFournisseurs->fetchAll();
+
+$stmtAgents = $pdo->prepare("SELECT id_user, nom_complet FROM Utilisateur WHERE role = 'admin' ORDER BY nom_complet ASC");
+$stmtAgents->execute();
+$agents = $stmtAgents->fetchAll();
 
 // 2. Traitement de la sortie de stock
 if (isset($_POST['valider_sortie'])) {
@@ -129,11 +141,30 @@ $sqlSorties = "SELECT t.id_transfert, t.num_bordereau,
                LEFT JOIN CommandeDetail cd ON l.id_cmd_det = cd.id_cmd_det
                LEFT JOIN Commande cmd ON cd.id_commande = cmd.id_commande
                LEFT JOIN Partenaire part ON cmd.id_partenaire = part.id_partenaire
-               WHERE p.type_produit = :typeProduit AND part.type = 'Don'
-               ORDER BY t.id_transfert DESC";
+               WHERE p.type_produit = ? AND part.type = 'Don'
+";
+
+$params = [$typeProduit];
+if (!empty($fournisseurFilter)) {
+    $sqlSorties .= " AND part.id_partenaire = ?";
+    $params[] = $fournisseurFilter;
+}
+if (!empty($agentFilter)) {
+    $sqlSorties .= " AND u.id_user = ?";
+    $params[] = $agentFilter;
+}
+if (!empty($dateFilterStart)) {
+    $sqlSorties .= " AND DATE(STR_TO_DATE(SUBSTRING(t.num_bordereau, 4, 14), '%Y%m%d%H%i%s')) >= ?";
+    $params[] = $dateFilterStart;
+}
+if (!empty($dateFilterEnd)) {
+    $sqlSorties .= " AND DATE(STR_TO_DATE(SUBSTRING(t.num_bordereau, 4, 14), '%Y%m%d%H%i%s')) <= ?";
+    $params[] = $dateFilterEnd;
+}
+$sqlSorties .= " ORDER BY t.id_transfert DESC";
 
 $stmtSorties = $pdo->prepare($sqlSorties);
-$stmtSorties->execute([':typeProduit' => $typeProduit]);
+$stmtSorties->execute($params);
 $sorties_dons = $stmtSorties->fetchAll();
 ?>
 
@@ -198,17 +229,56 @@ $sorties_dons = $stmtSorties->fetchAll();
     <?php endif; ?>
 
     <form method="GET" id="searchForm" class="my-3" role="search">
-        <div>
-            <label for="typeFilter" class="form-label">Trier par type</label>
-            <div class="d-flex gap-2">
+        <div class="row g-2">
+            <div class="col-md-3">
+                <label class="form-label">Type</label>
                 <select id="typeFilter" name="type" class="form-select">
                     <option value="Medicament" <?= $typeFilter === 'Medicament' ? 'selected' : '' ?>>Pharmacie</option>
                     <option value="Laboratoire" <?= $typeFilter === 'Laboratoire' ? 'selected' : '' ?>>Laboratoire</option>
                 </select>
-                <button type="submit" class="btn btn-secondary">Appliquer</button>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Fournisseur</label>
+                <select id="fournisseurFilter" name="fournisseur" class="form-select">
+                    <option value="">Tous les fournisseurs</option>
+                    <?php foreach ($fournisseurs as $fournisseur): ?>
+                        <option value="<?= $fournisseur['id_partenaire'] ?>" <?= $fournisseurFilter === (string)$fournisseur['id_partenaire'] ? 'selected' : '' ?>><?= htmlspecialchars($fournisseur['nom_entite']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Date (du)</label>
+                <input type="date" id="dateFilterStart" name="dateStart" value="<?= htmlspecialchars($dateFilterStart) ?>" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Date (au)</label>
+                <input type="date" id="dateFilterEnd" name="dateEnd" value="<?= htmlspecialchars($dateFilterEnd) ?>" class="form-control">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Agent</label>
+                <select id="agentFilter" name="agent" class="form-select">
+                    <option value="">Tous les agents</option>
+                    <?php foreach ($agents as $agent): ?>
+                        <option value="<?= $agent['id_user'] ?>" <?= $agentFilter === (string)$agent['id_user'] ? 'selected' : '' ?>><?= htmlspecialchars($agent['nom_complet']) ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
         </div>
     </form>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var searchForm = document.getElementById('searchForm');
+        if (!searchForm) return;
+        var fields = searchForm.querySelectorAll('select, input[type="date"], input[type="text"], input[type="search"]');
+        fields.forEach(function(el) {
+            var eventName = (el.tagName.toLowerCase() === 'input' && (el.type === 'text' || el.type === 'search')) ? 'input' : 'change';
+            el.addEventListener(eventName, function() {
+                searchForm.submit();
+            });
+        });
+    });
+    </script>
 
     <div class="card mt-4 shadow-sm">
         <div class="card-body">

@@ -47,6 +47,8 @@ if ($isAdmin && isset($_POST['btn_ajouter_produit'])) {
         // Catégorie OK → INSERT PRODUIT (On ne gère plus stock_total ici)
         $stmt = $pdo->prepare("INSERT INTO Produit (id_categorie, nom_medicament, type_produit, prix_unitaire, marge_pourcentage, seuil_alerte) VALUES (?, ?, ?, ?, ?, ?)");
         if ($stmt->execute([$id_categorie, $nom, $type_produit, $prix_unitaire, $marge, $seuil])) {
+            $new_product_id = $pdo->lastInsertId();
+            $new_product_name = $nom;
             $message = "<div class='alert alert-success'>Produit ajouté avec succès !</div>";
         } else {
             $message = "<div class='alert alert-danger'>Erreur lors de l'ajout du produit.</div>";
@@ -142,9 +144,7 @@ include '../includes/sidebar.php';
     <!-- FORMULAIRE RECHERCHE + FILTRE TYPE sous la barre -->
     <form method="GET" id="searchForm" class="mb-3" role="search">
         <div class="d-flex gap-2 mb-2">
-            <input id="searchInput" type="search" name="q" class="form-control" placeholder="Rechercher un médicament..." value="<?= htmlspecialchars($search) ?>">
-            <button class="btn btn-primary" type="submit">Rechercher</button>
-            <a href="produits.php" class="btn btn-outline-primary">Réinitialiser</a>
+            <input id="searchInput" type="search" name="q" class="form-control" placeholder="Rechercher un produit par son nom ou sa catégorie" value="<?= htmlspecialchars($search) ?>">            
         </div>
         <div>
             <label for="typeFilter" class="form-label">Trier par type</label>
@@ -153,13 +153,12 @@ include '../includes/sidebar.php';
                     <option value="Medicament" <?= $typeFilter === 'Medicament' ? 'selected' : '' ?>>Pharmacie</option>
                     <option value="Laboratoire" <?= $typeFilter === 'Laboratoire' ? 'selected' : '' ?>>Laboratoire</option>
                 </select>
-                <button type="submit" class="btn btn-secondary">Appliquer</button>
             </div>
         </div>
     </form>
 
     <!-- TABLEAU (inchangé) -->
-    <table class="table table-bordered bg-white shadow-sm">
+    <table class="table table-bordered shadow-sm">
         <thead class="table-light">
             <tr>
                 <th>Nom</th>
@@ -173,13 +172,13 @@ include '../includes/sidebar.php';
                 <th>Action</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="tableProduitsBody">
             <?php foreach($produits as $p): 
                 $stock_achat = (int)$p['stock_achat'];
                 $stock_don = (int)$p['stock_don'];
                 $stock_total = $stock_achat + $stock_don;
                 $seuil = isset($p['seuil_alerte']) ? (int)$p['seuil_alerte'] : 0;
-                $rowClass = $stock_total === 0 ? 'table-danger text-white' : ($stock_total <= $seuil ? 'table-warning' : '');
+                $rowClass = $stock_total === 0 ? 'table-danger text-white' : ($stock_total <= $seuil ? 'table-warning text-dark' : '');
             ?>
                 <tr class="<?= $rowClass ?>">
                     <td><?= htmlspecialchars($p['nom_medicament']) ?></td>
@@ -216,6 +215,21 @@ include '../includes/sidebar.php';
             <?php endforeach; ?>
         </tbody>
     </table>
+
+    <!-- Système de sélection de quantité -->
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-5 p-2 bg-white border rounded shadow-sm">
+        <div class="text-muted small">
+            Affichage de <span id="countDisplay" class="fw-bold"><?= count($produits) ?></span> produit(s)
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <label for="limitSelector" class="form-label mb-0 small fw-bold">Afficher :</label>
+            <select id="limitSelector" class="form-select form-select-sm" style="width: auto;">
+                <option value="25">25</option>
+                <option value="50">50</option>                
+                <option value="all">Tout</option>
+            </select>
+        </div>
+    </div>
 </div>
 
 <?php if($isAdmin): ?>
@@ -305,7 +319,7 @@ include '../includes/sidebar.php';
 
                 <input type="text" name="nom" class="form-control mb-2" placeholder="Nom du médicament (ex: Doliprane)" required>
                 <input type="number" step="0.01" name="prix_unitaire" class="form-control mb-2" placeholder="Prix unitaire (FCFA)" min="0">
-                <input type="number" step="0.01" name="marge_pourcentage" class="form-control mb-2" placeholder="Marge %" value="20" min="0" max="100">
+                <input type="number" step="0.01" name="marge_pourcentage" class="form-control mb-2" placeholder="Marge %" value="20" min="0" max="50">
                 <input type="number" name="seuil_alerte" class="form-control" placeholder="Seuil d'alerte (ex: 30)" min="0">
             </div>
             <div class="modal-footer">
@@ -354,13 +368,44 @@ include '../includes/sidebar.php';
                 <input type="hidden" name="id_produit" id="edit_id_produit">
                 <input type="text" name="nom_medicament" id="edit_nom" class="form-control mb-2" required>
                 <input type="number" step="0.01" name="prix_unitaire" id="edit_prix" class="form-control mb-2" min="0">
-                <input type="number" step="0.01" name="marge_pourcentage" id="edit_marge" class="form-control mb-2" min="0" max="100">
+                <input type="number" step="0.01" name="marge_pourcentage" id="edit_marge" class="form-control mb-2" min="0" max="50">
                 <input type="number" name="seuil_alerte" id="edit_seuil" class="form-control" min="0">
             </div>
             <div class="modal-footer">
                 <button type="submit" name="btn_update_produit" class="btn btn-primary">Mettre à jour</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- MODAL DE REDIRECTION APRÈS CRÉATION -->
+<div class="modal fade" id="modalPostAjout" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-success text-white border-0">
+                <h5 class="modal-title fw-bold"><i class="bi bi-check-circle-fill me-2"></i> Produit enregistré</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <p class="fs-5">Le produit <strong><?= htmlspecialchars($new_product_name ?? '') ?></strong> a été ajouté avec succès.</p>
+                <p class="text-muted">Son stock initial est de <strong>0</strong>. Souhaitez-vous enregistrer une réception de stock maintenant ?</p>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-4">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">Plus tard</button>
+                    
+                    <div class="dropdown">
+                        <button class="btn btn-primary px-4 dropdown-toggle" type="button" id="dropdownReception" data-bs-toggle="dropdown" aria-expanded="false">
+                            Oui 
+                        </button>
+                        <ul class="dropdown-menu shadow border-0" aria-labelledby="dropdownReception">
+                            <li><h6 class="dropdown-header">Type de réception</h6></li>
+                            <li><a class="dropdown-item py-2" href="entrees.php?id_p=<?= $new_product_id ?? '' ?>">Réception Fournisseur (Achat)</a></li>
+                            <li><a class="dropdown-item py-2" href="dons.php?id_p=<?= $new_product_id ?? '' ?>">Réception de Don</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 <?php endif; ?>
@@ -381,13 +426,113 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('edit_seuil').value = button.getAttribute('data-seuil');
         });
     }
+
+    // Affichage automatique du modal de redirection si un produit vient d'être créé
+    <?php if(isset($new_product_id)): ?>
+    var modalPostAjout = new bootstrap.Modal(document.getElementById('modalPostAjout'), {
+        backdrop: 'static',
+        keyboard: false
+    });
+    modalPostAjout.show();
+    <?php endif; ?>
 });
 </script>
 <?php endif; ?>
 
-<!-- Script AJAX recherche (inchangé) -->
 <script>
-// ... (ton script AJAX existant reste identique)
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const typeFilter = document.getElementById('typeFilter');
+    const tableBody = document.getElementById('tableProduitsBody');
+    const limitSelector = document.getElementById('limitSelector');
+    const countDisplay = document.getElementById('countDisplay');
+    const isAdmin = <?= $isAdmin ? 'true' : 'false' ?>;
+
+    function fetchProduits() {
+        const query = searchInput.value;
+        const type = typeFilter.value;
+        const limit = limitSelector.value;
+
+        fetch(`produits_search.php?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type)}&limit=${limit}`)
+            .then(response => response.json())
+            .then(data => {
+                countDisplay.textContent = data.length;
+                renderTable(data);
+            })
+            .catch(error => console.error('Erreur:', error));
+    }
+
+    function renderTable(produits) {
+        tableBody.innerHTML = '';
+        
+        if (produits.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted">Aucun produit trouvé.</td></tr>';
+            return;
+        }
+
+        produits.forEach(p => {
+            const stock_achat = parseInt(p.stock_achat) || 0;
+            const stock_don = parseInt(p.stock_don) || 0;
+            const stock_total = stock_achat + stock_don;
+            const seuil = parseInt(p.seuil_alerte) || 0;
+            
+            let rowClass = '';
+            if (stock_total === 0) rowClass = 'table-danger text-white';
+            else if (stock_total <= seuil) rowClass = 'table-warning text-dark';
+
+            const tr = document.createElement('tr');
+            if (rowClass) tr.className = rowClass;
+
+            let actionHtml = '-';
+            if (isAdmin) {
+                actionHtml = `
+                    <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditProduit"
+                        data-id="${p.id_produit}"
+                        data-nom="${p.nom_medicament}"
+                        data-prix="${p.prix_unitaire}"
+                        data-marge="${p.marge_pourcentage}"
+                        data-seuil="${p.seuil_alerte}"
+                        data-categorie="${p.id_categorie}"
+                        title="Modifier">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <form method="POST" class="d-inline" onsubmit="return confirm('Supprimer ce médicament ?');">
+                        <input type="hidden" name="id_produit" value="${p.id_produit}">
+                        <button type="submit" name="btn_delete_produit" class="btn btn-sm btn-outline-danger" title="Supprimer">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                `;
+            }
+
+            tr.innerHTML = `
+                <td>${p.nom_medicament}</td>
+                <td>${p.nom_categorie} (${p.forme})</td>
+                <td>${parseFloat(p.prix_unitaire || 0).toLocaleString('fr-FR', {minimumFractionDigits: 2})} FCFA</td>
+                <td class="text-center">${p.marge_pourcentage}%</td>
+                <td class="text-center">${seuil}</td>
+                <td class="text-center">${stock_achat}</td>
+                <td class="text-center">${stock_don}</td>
+                <td class="text-center fw-bold">${stock_total}</td>
+                <td class="text-nowrap">${actionHtml}</td>
+            `;
+            tableBody.appendChild(tr);
+        });
+    }
+
+    // Debounce pour éviter trop de requêtes
+    let timeout = null;
+    searchInput.addEventListener('input', function() {
+        clearTimeout(timeout);
+        timeout = setTimeout(fetchProduits, 300);
+    });
+
+    // Le changement de filtre recharge aussi en live
+    typeFilter.addEventListener('change', fetchProduits);
+    
+    // Le changement de limite recharge aussi en live
+    limitSelector.addEventListener('change', fetchProduits);
+});
 </script>
 
 <?php include '../includes/footer.php'; ?>

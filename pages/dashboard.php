@@ -56,7 +56,11 @@ $sql_alerte = "SELECT COUNT(*) FROM (
                 GROUP BY p.id_produit
               ) as stocks 
               WHERE total <= seuil_alerte AND total > 0";
-$nb_alerte = $pdo->query($sql_alerte)->fetchColumn() ?: 0;
+$nb_stock_faible = $pdo->query($sql_alerte)->fetchColumn() ?: 0;
+
+// On ajoute les lots bientôt périmés (entre aujourd'hui et J+14) au compteur Critique
+$nb_bientot_perime = $pdo->query("SELECT COUNT(*) FROM StockLot WHERE date_expiration BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) AND quantite_actuelle > 0")->fetchColumn() ?: 0;
+$nb_alerte = $nb_stock_faible + $nb_bientot_perime;
 
 // C. Ruptures de stock (Stock Total = 0)
 $sql_rupture = "SELECT COUNT(*) FROM (
@@ -68,8 +72,8 @@ $sql_rupture = "SELECT COUNT(*) FROM (
               WHERE total = 0";
 $nb_rupture = $pdo->query($sql_rupture)->fetchColumn() ?: 0;
 
-// D. Produits périmés ou bientôt périmés (on inclut les lots à moins de 14 jours de leur date d'expiration)
-$nb_perime = $pdo->query("SELECT COUNT(*) FROM StockLot WHERE date_expiration <= DATE_ADD(CURRENT_DATE, INTERVAL 14 DAY) AND quantite_actuelle > 0")->fetchColumn();
+// D. Produits strictement périmés
+$nb_perime = $pdo->query("SELECT COUNT(*) FROM StockLot WHERE date_expiration < CURRENT_DATE AND quantite_actuelle > 0")->fetchColumn();
 // Récupère des lots périmés/critiques (détails pour affichage)
 $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, part.nom_entite, c.date_commande
                              FROM StockLot l 
@@ -136,7 +140,7 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, part.
     <div class="row mt-5">
         <div class="col-md-12">
             <h4>Alertes à traiter d'urgence</h4>
-            <table class="table table-hover bg-white shadow-sm">
+            <table class="table table-hover shadow-sm">
                 <thead class="table-light">
                     <tr>
                         <th>Produit</th>
@@ -157,8 +161,15 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, part.
                                         ORDER BY stock_total ASC LIMIT 10";
                     $list_alerte = $pdo->query($sql_list_alerte);
                     while($row = $list_alerte->fetch()) {
-                        $status = ($row['stock_total'] == 0) ? '<span class="badge bg-danger">Rupture</span>' : '<span class="badge bg-warning">Critique</span>';
-                        echo "<tr>
+                        if ($row['stock_total'] == 0) {
+                            $status = '<span class="badge bg-danger">Rupture</span>';
+                            $rowClass = 'text-white';
+                        } else {
+                            $status = '<span class="badge bg-warning text-dark">Critique</span>';
+                            $rowClass = 'table-warning text-dark';
+                        }
+                        
+                        echo "<tr class='$rowClass'>
                                 <td>" . htmlspecialchars($row['nom_medicament']) . "</td>
                                 <td>" . htmlspecialchars($row['type_produit']) . "</td>
                                 <td>{$row['stock_total']}</td>
@@ -195,10 +206,10 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, part.
                             $today = strtotime(date('Y-m-d'));
                             if ($exp_ts < $today) {
                                 $status = '<span class="badge bg-dark">Périmé</span>';
-                                // $rowClass = 'table-dark text-white';
+                                $rowClass = 'table-danger';
                             } else {
                                 $status = '<span class="badge bg-warning">Critique</span>';
-                                // $rowClass = 'table-warning';
+                                $rowClass = '';
                             }
                         ?>
                         <tr class="<?= $rowClass ?>">

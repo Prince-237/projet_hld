@@ -14,7 +14,7 @@ function isActive($page) {
     return ($current_page === $page) ? 'active' : '';
 }
 
-$achats_pages = ['entrees.php', 'sorties.php'];
+$achats_pages = ['entrees.php', 'entrees_stock.php', 'sorties.php', 'liste_transferts.php'];
 $is_achats_active = in_array($current_page, $achats_pages);
 
 $dons_pages = ['dons.php', 'sorties_dons.php'];
@@ -48,7 +48,7 @@ $is_dons_active = in_array($current_page, $dons_pages);
                     <a class="nav-link text-white <?= ($current_page == 'dashboard.php') ? 'active' : '' ?>" href="<?= $root_prefix ?>pages/dashboard.php">Tableau de bord</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link text-white <?= ($current_page == 'produits.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/produits.php">Medicaments</a>
+                    <a class="nav-link text-white <?= ($current_page == 'produits.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/produits.php">Produits</a>
                 </li>
                 <!-- Gestion des Achats -->
                 <li class="nav-item">
@@ -59,10 +59,16 @@ $is_dons_active = in_array($current_page, $dons_pages);
                     <div class="collapse <?= $is_achats_active ? 'show' : '' ?>" id="achatsSubmenu">
                         <ul class="nav flex-column ms-3">
                             <li class="nav-item">
-                                <a class="nav-link text-white <?= ($current_page == 'entrees.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/entrees.php">Commande - Entrees</a>
+                                <a class="nav-link text-white <?= ($current_page == 'entrees.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/entrees.php">Ajouter une Commande</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-white <?= ($current_page == 'sorties.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/sorties.php">Sorties Achats</a>
+                                <a class="nav-link text-white <?= ($current_page == 'entrees_stock.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/entrees_stock.php">Liste des Entrées</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-white <?= ($current_page == 'sorties.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/sorties.php">Transferts</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-white <?= ($current_page == 'liste_transferts.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/liste_transferts.php">Liste des transferts</a>
                             </li>
                         </ul>
                     </div>
@@ -79,7 +85,7 @@ $is_dons_active = in_array($current_page, $dons_pages);
                                 <a class="nav-link text-white <?= ($current_page == 'dons.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/dons.php">Réception Dons</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link text-white <?= ($current_page == 'sorties_dons.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/sorties_dons.php">Sorties Dons</a>
+                                <a class="nav-link text-white <?= ($current_page == 'sorties_dons.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/sorties_dons.php">Transferts</a>
                             </li>
                         </ul>
                     </div>

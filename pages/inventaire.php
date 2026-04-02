@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 require_once '../config/db.php';
 session_start();
@@ -9,6 +9,13 @@ if (!isset($_SESSION['user_id'])) {
 $isAdmin = ($_SESSION['role'] === 'admin');
 
 $message = '';
+$hasObservationColumn = false;
+try {
+    $colObs = $pdo->query("SHOW COLUMNS FROM InventaireDetail LIKE 'observation'");
+    $hasObservationColumn = $colObs && $colObs->rowCount() > 0;
+} catch (Exception $e) {
+    $hasObservationColumn = false;
+}
 
 // --- ACTION : RECALCUL SEUIL ---
 if ($isAdmin && isset($_POST['btn_recalcul_seuil'])) {
@@ -51,8 +58,6 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'process_inventory
             while ($detail = $details->fetch()) {
                 $ecart = (int)$detail['ecart'];
                 $id_lot = (int)$detail['id_lot'];
-                // Note : Dans la nouvelle structure, l'inventaire se fait par LOT (InventaireDetail a id_lot, pas id_produit direct)
-                // Si votre CSV ou saisie manuelle était par produit, il faudra adapter. 
                 // Ici on suppose que InventaireDetail pointe vers StockLot comme défini dans newSql.sql
 
                 if ($ecart != 0) {
@@ -77,12 +82,12 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'process_inventory
             // Passer le statut de l'inventaire à 'traité'
             $pdo->prepare("UPDATE Inventaire SET statut = 'traité' WHERE id_inventaire = ?")->execute([$id_inventaire]);
 
-            // NOUVEAU: Supprimer les autres brouillons pour la même période pour nettoyer l'historique
+            // Supprimer les autres brouillons pour la même période pour nettoyer l'historique
             $inv_date = $inventory_to_process['date_inventaire'];
             $inv_year = date('Y', strtotime($inv_date));
             $inv_month = date('n', strtotime($inv_date));
 
-            // 1. Trouver les IDs des autres brouillons à supprimer
+            // Trouver les IDs des autres brouillons à supprimer
             $stmt_to_delete = $pdo->prepare(
                 "SELECT id_inventaire FROM Inventaire 
                  WHERE YEAR(date_inventaire) = ? 
@@ -116,18 +121,18 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'export') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="inventaire_' . date('Y-m-d') . '.csv"');
     $output = fopen('php://output', 'w');
-    // Entêtes du CSV - On exporte par LOT maintenant pour être précis
-    fputcsv($output, ['id_lot', 'nom_medicament', 'num_lot', 'stock_theorique', 'stock_physique', 'ecart'], ';');
+    // En-têtes du CSV - Export par LOT pour plus de précision
+    fputcsv($output, ['id_lot', 'nom_medicament', 'num_lot', 'stock_theorique', 'stock_physique', 'ecart', 'observation'], ';');
 
-    // On récupère les lots avec stock > 0
+    // Récupération des lots ayant un stock positif
     $sqlExp = "SELECT l.id_lot, p.nom_medicament, l.num_lot, l.quantite_actuelle 
                FROM StockLot l JOIN Produit p ON l.id_produit = p.id_produit 
                WHERE l.quantite_actuelle > 0 ORDER BY p.nom_medicament ASC";
     $lots = $pdo->query($sqlExp)->fetchAll();
-    $rowIndex = 2; // Excel starts at row 1 for header
+    $rowIndex = 2; // Excel commence à la ligne 1 pour l'en-tête
     foreach ($lots as $l) {
         $formula = sprintf('=E%d-D%d', $rowIndex, $rowIndex);
-        fputcsv($output, [$l['id_lot'], $l['nom_medicament'], $l['num_lot'], $l['quantite_actuelle'], '', $formula], ';');
+        fputcsv($output, [$l['id_lot'], $l['nom_medicament'], $l['num_lot'], $l['quantite_actuelle'], '', $formula, 'Renseigner si écart différent de 0'], ';');
         $rowIndex++;
     }
     fclose($output);
@@ -146,7 +151,7 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'edit_inventaire' 
 if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'delete_inventaire' && isset($_GET['id'])) {
     $id_inv = (int)$_GET['id'];
     
-    // On vérifie le statut avant de supprimer
+    // Vérification du statut avant suppression
     $stmtCheck = $pdo->prepare("SELECT statut FROM Inventaire WHERE id_inventaire = ?");
     $stmtCheck->execute([$id_inv]);
     $statut = $stmtCheck->fetchColumn();
@@ -171,7 +176,7 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'delete_inventaire
 if ($isAdmin && isset($_POST['btn_import_inventaire'])) {
     if (isset($_FILES['fichier_inventaire']) && $_FILES['fichier_inventaire']['error'] == 0) {
 
-        // VERIFICATION : Un inventaire pour le mois en cours existe-t-il déjà ?
+        // VÉRIFICATION : Un inventaire pour le mois en cours existe-t-il déjà ?
         $currentMonth = date('n');
         $currentYear = date('Y');
         $stmtCheck = $pdo->prepare("SELECT id_inventaire, statut FROM Inventaire WHERE YEAR(date_inventaire) = ? AND MONTH(date_inventaire) = ?");
@@ -193,7 +198,7 @@ if ($isAdmin && isset($_POST['btn_import_inventaire'])) {
                 $pdo->prepare("DELETE FROM Inventaire WHERE id_inventaire = ?")->execute([$id_to_delete]);
             }
 
-            // 1. Créer l'enregistrement de l'inventaire parent avec le statut 'en cours'
+            // Création de l'enregistrement de l'inventaire parent avec le statut 'en cours'
             $stmt = $pdo->prepare("INSERT INTO Inventaire (date_inventaire, id_user, statut) VALUES (NOW(), ?, 'en cours')");
             $stmt->execute([$_SESSION['user_id']]);
             $id_inventaire = $pdo->lastInsertId();
@@ -202,38 +207,50 @@ if ($isAdmin && isset($_POST['btn_import_inventaire'])) {
             fgetcsv($file); // Ignorer la ligne d'en-tête
 
             $ligne = 1; // Compteur pour indiquer la ligne en erreur
+            $stmtDetailObs = $hasObservationColumn
+                ? $pdo->prepare("INSERT INTO InventaireDetail (id_inventaire, id_lot, stock_theorique, stock_physique, observation) VALUES (?, ?, ?, ?, ?)")
+                : $pdo->prepare("INSERT INTO InventaireDetail (id_inventaire, id_lot, stock_theorique, stock_physique) VALUES (?, ?, ?, ?)");
 
             while (($data = fgetcsv($file, 1000, ';')) !== FALSE) {
                 $ligne++;
                 
                 // Ignorer les lignes vides
                 if ($data === [null] || empty($data)) continue;
-
-                // Format attendu CSV : id_lot; nom; num_lot; stock_theorique; stock_physique; ecart
-                if (count($data) < 5) throw new Exception("Erreur ligne $ligne : Format invalide (colonnes manquantes).");
+                
+                // Format attendu CSV : id_lot; nom; num_lot; stock_theorique; stock_physique; ecart; observation
+                if (count($data) < 7) throw new Exception("Erreur ligne $ligne : Format invalide (colonnes manquantes).");
                 
                 $csv_id_lot = trim($data[0]);
                 $csv_qte = trim($data[4]); // stock_physique is at index 4
-
+                $csv_observation = isset($data[6]) ? trim($data[6]) : '';
+                
                 if (!ctype_digit($csv_id_lot)) throw new Exception("Erreur ligne $ligne : L'ID Lot '$csv_id_lot' n'est pas valide.");
                 if (!ctype_digit($csv_qte)) throw new Exception("Erreur ligne $ligne : La quantité '$csv_qte' n'est pas valide. Uniquement des entiers positifs sont acceptés.");
-
+                
                 $id_lot = (int)$csv_id_lot;
                 $stock_physique = (int)$csv_qte;
-
+                
                 // Récupérer le stock théorique actuel de la BDD (table StockLot)
                 $stmtLot = $pdo->prepare("SELECT quantite_actuelle FROM StockLot WHERE id_lot = ?");
                 $stmtLot->execute([$id_lot]);
                 $stock_theorique_db = $stmtLot->fetchColumn();
-
+                
                 if ($stock_theorique_db === false) {
                     throw new Exception("Erreur ligne $ligne : Le lot ID $id_lot est inconnu.");
                 }
-
+                
+                $ecart_calcule = $stock_physique - (int)$stock_theorique_db;
+                if ($ecart_calcule !== 0 && $csv_observation === '') {
+                    throw new Exception("Erreur ligne $ligne : Observation obligatoire lorsque l'écart n'est pas nul.");
+                }
+                
                 // 2. Enregistrer le détail de la ligne d'inventaire
-                $stmtDetail = $pdo->prepare("INSERT INTO InventaireDetail (id_inventaire, id_lot, stock_theorique, stock_physique) VALUES (?, ?, ?, ?)");
-                $stmtDetail->execute([$id_inventaire, $id_lot, $stock_theorique_db, $stock_physique]);
-
+                if ($hasObservationColumn) {
+                    $stmtDetailObs->execute([$id_inventaire, $id_lot, $stock_theorique_db, $stock_physique, $csv_observation]);
+                } else {
+                    $stmtDetailObs->execute([$id_inventaire, $id_lot, $stock_theorique_db, $stock_physique]);
+                }
+                
             }
             fclose($file);
 
@@ -251,7 +268,7 @@ if ($isAdmin && isset($_POST['btn_import_inventaire'])) {
 
 // --- ACTION : SAISIE EN LIGNE (MANUELLE) ---
 if ($isAdmin && isset($_POST['btn_save_manual_inventaire'])) {
-    // 1. Vérification mois en cours (même logique que l'import)
+    // Vérification du mois en cours (même logique que l'import)
     $currentMonth = date('n');
     $currentYear = date('Y');
     $stmtCheck = $pdo->prepare("SELECT id_inventaire, statut FROM Inventaire WHERE YEAR(date_inventaire) = ? AND MONTH(date_inventaire) = ?");
@@ -270,27 +287,23 @@ if ($isAdmin && isset($_POST['btn_save_manual_inventaire'])) {
                 $pdo->prepare("DELETE FROM Inventaire WHERE id_inventaire = ?")->execute([$id_to_delete]);
             }
 
-            // Création de l'entête avec statut 'en cours'
+            // Création de l'en-tête avec statut 'en cours'
             $stmt = $pdo->prepare("INSERT INTO Inventaire (date_inventaire, id_user, statut) VALUES (NOW(), ?, 'en cours')");
             $stmt->execute([$_SESSION['user_id']]);
             $id_inventaire = $pdo->lastInsertId();
 
-            // Traitement des lignes (On attend un tableau stocks[id_lot] = quantite)
+            // Traitement des lignes
             if (isset($_POST['stocks']) && is_array($_POST['stocks'])) {
                 foreach ($_POST['stocks'] as $id_lot => $qty_physique) {
                     $id_lot = (int)$id_lot;
                     $qty_physique = (int)$qty_physique;
 
-                    // Récupérer stock théorique
+                    // Récupération du stock théorique
                     $stmtLot = $pdo->prepare("SELECT quantite_actuelle FROM StockLot WHERE id_lot = ?");
                     $stmtLot->execute([$id_lot]);
                     $stock_theo = $stmtLot->fetchColumn();
                     if ($stock_theo === false) continue;
 
-                    // Enregistrement détail
-                    // Note: 'ecart' est généré automatiquement par la BDD (GENERATED ALWAYS AS) selon newSql.sql
-                    // Si ta version de MySQL ne le supporte pas, décommente le calcul PHP.
-                    // Ici on insert juste les valeurs de base.
                     $pdo->prepare("INSERT INTO InventaireDetail (id_inventaire, id_lot, stock_theorique, stock_physique) VALUES (?, ?, ?, ?)")
                         ->execute([$id_inventaire, $id_lot, $stock_theo, $qty_physique]);
                 }
@@ -325,7 +338,7 @@ if (!$inventaire_a_afficher) {
 }
 
 
-// Historique complet (pour la pop‑up)
+// Historique complet
 $inventaires_history = $pdo->query("SELECT i.id_inventaire, i.date_inventaire, i.statut, u.nom_complet
                                   FROM Inventaire i
                                   JOIN Utilisateur u ON i.id_user = u.id_user
@@ -359,7 +372,7 @@ include '../includes/sidebar.php';
             </form>
         <?php endif; ?>
     </div>
-    <p>Exportez le modèle, complétez-le hors ligne dans votre editeur Excel puis importez‑le pour enregistrer un inventaire.</p>
+    <p>Exportez le modèle, complétez-le hors ligne dans votre éditeur Excel, puis importez-le pour enregistrer un inventaire.</p>
 
     <?php if ($message) echo $message; ?>
 
@@ -367,9 +380,9 @@ include '../includes/sidebar.php';
     <div class="alert alert-warning d-flex justify-content-between align-items-center shadow-sm">
         <div>
             <h5 class="alert-heading">Un inventaire est en cours !</h5>
-            Ce brouillon a été créé le <?= date('d/m/Y à H:i', strtotime($inventaire_a_afficher['date_inventaire'])) ?>. Les stocks ne seront mis à jour qu'après validation.
+            Ce brouillon a été créé le <?= date('d/m/Y à H:i', strtotime($inventaire_a_afficher['date_inventaire'])) ?>. Les stocks ne seront mis à jour qu'après validation finale.
         </div>
-        <a href="?action=process_inventory&id=<?= $inventaire_a_afficher['id_inventaire'] ?>" class="btn btn-success btn-lg" onclick="return confirm('Êtes-vous sûr de vouloir valider cet inventaire ? Cette action est irréversible et mettra à jour tous les stocks.');">
+        <a href="?action=process_inventory&id=<?= $inventaire_a_afficher['id_inventaire'] ?>" class="btn btn-success btn-lg" onclick="return confirm('Êtes-vous sûr de vouloir valider cet inventaire ? Cette action est irréversible et mettra à jour les stocks physiques.');">
             <i class="bi bi-check-circle-fill"></i> Valider et Traiter l'Inventaire
         </a>
     </div>
@@ -392,7 +405,7 @@ include '../includes/sidebar.php';
                     </div>
                     <div class="col-auto border-end border-2 mx-2"></div>
                     <div class="col-auto">
-                        <a href="?action=export" class="btn btn-outline-success">Exporter un Modèle Excel(.csv)</a>
+                        <a href="?action=export" class="btn btn-outline-success">Exporter un Modèle Excel (.csv)</a>
                     </div>
                     <div class="col-auto">
                         <form method="POST" enctype="multipart/form-data" class="d-flex">
@@ -408,7 +421,7 @@ include '../includes/sidebar.php';
                         <h6 class="card-title text-primary"><i class="bi bi-info-circle"></i> Saisie directe de l'inventaire</h6>
                         <p class="small text-muted">Renseignez la quantité physique constatée pour chaque produit.</p>
                         
-                        <form method="POST" onsubmit="return confirm('Attention : Cette action va enregistrer un brouillon d\'inventaire. Si un brouillon existe déjà pour ce mois, il sera écrasé. Continuer ?');">
+                        <form method="POST" onsubmit="return confirm('Attention : Cette action va enregistrer un brouillon d\'inventaire. Si un brouillon existe déjà pour ce mois, il sera remplacé. Continuer ?');">
                             <div style="max-height: 500px; overflow-y: auto;">
                                 <table class="table table-sm table-bordered bg-white">
                                     <thead class="table-light sticky-top" style="z-index: 1;">
@@ -416,13 +429,14 @@ include '../includes/sidebar.php';
                                             <th>Produit</th>
                                             <th>Type</th>
                                             <th>Lot</th>
-                                            <th style="width: 150px;" class="text-center">Stock Théorique</th>
-                                            <th style="width: 150px;" class="text-center">Stock Physique</th>
+                                            <th style="width: 140px;" class="text-center">Stock Théorique</th>
+                                            <th style="width: 140px;" class="text-center">Stock Physique</th>
+                                            <th style="width: 100px;" class="text-center">Écart</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <?php
-                                        // Pré-remplir avec les données du brouillon s'il existe
+                                        // Pré-remplissage avec les données du brouillon s'il existe
                                         $draft_details = [];
                                         if ($inventaire_a_afficher && $inventaire_a_afficher['statut'] === 'en cours') {
                                             $stmt_draft = $pdo->prepare("SELECT id_lot, stock_physique FROM InventaireDetail WHERE id_inventaire = ?");
@@ -432,7 +446,7 @@ include '../includes/sidebar.php';
                                             }
                                         }
 
-                                        // On liste les lots (actifs ou ayant du stock)
+                                        // Liste des lots actifs
                                         $list_form = $pdo->query("SELECT l.id_lot, l.num_lot, l.quantite_actuelle, p.nom_medicament, p.type_produit 
                                                                   FROM StockLot l JOIN Produit p ON l.id_produit = p.id_produit 
                                                                   WHERE l.quantite_actuelle > 0 
@@ -443,10 +457,12 @@ include '../includes/sidebar.php';
                                             if ($prod['type_produit'] !== $current_type) {
                                                 $current_type = $prod['type_produit'];
                                                 $display_type = ($current_type === 'Medicament') ? 'Pharmacie' : $current_type;
-                                                echo '<tr><td colspan="5" class="table-group-divider fw-bold bg-light-subtle">' . htmlspecialchars($display_type) . '</td></tr>';
+                                                echo '<tr><td colspan="6" class="table-group-divider fw-bold bg-light-subtle">' . htmlspecialchars($display_type) . '</td></tr>';
                                             }
                                             // Quantité physique du brouillon, ou stock théorique par défaut
                                             $phys_qty = isset($draft_details[$prod['id_lot']]) ? $draft_details[$prod['id_lot']] : $prod['quantite_actuelle'];
+                                            $ecart_init = (int)$phys_qty - (int)$prod['quantite_actuelle'];
+                                            $ecart_label = ($ecart_init > 0 ? '+' : '') . $ecart_init;
                                         ?>
                                             <tr>
                                                 <td><?= htmlspecialchars($prod['nom_medicament']) ?></td>
@@ -454,7 +470,19 @@ include '../includes/sidebar.php';
                                                 <td><small><?= htmlspecialchars($prod['num_lot']) ?></small></td>
                                                 <td class="text-center bg-light text-muted"><?= $prod['quantite_actuelle'] ?></td>
                                                 <td>
-                                                    <input type="number" name="stocks[<?= $prod['id_lot'] ?>]" class="form-control form-control-sm text-center fw-bold" value="<?= $phys_qty ?>" min="0" required>
+                                                    <input type="number"
+                                                           name="stocks[<?= $prod['id_lot'] ?>]"
+                                                           class="form-control form-control-sm text-center fw-bold"
+                                                           value="<?= $phys_qty ?>"
+                                                           min="0"
+                                                           data-theo="<?= $prod['quantite_actuelle'] ?>"
+                                                           oninput="updateEcart(this)"
+                                                           required>
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge <?= $ecart_init === 0 ? 'bg-secondary' : ($ecart_init > 0 ? 'bg-warning text-dark' : 'bg-danger') ?> ecart-badge">
+                                                        <?= $ecart_label ?>
+                                                    </span>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -545,7 +573,7 @@ include '../includes/sidebar.php';
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Année</label>
+                            <label class="form-label">Année</label>
                     <select id="history_y" class="form-select">
                         <?php for ($y = date('Y'); $y >= date('Y') - 2; $y--): ?>
                             <option value="<?= $y ?>" <?= ($y == date('Y')) ? 'selected' : '' ?>><?= $y ?></option>
@@ -562,7 +590,7 @@ include '../includes/sidebar.php';
                 <table class="table table-striped table-hover table-sm">
                     <thead class="table-light">
                         <tr>
-                            <th>ID</th>
+                            <!-- <th>ID</th> -->
                             <th>Date</th>
                             <th>Statut</th>
                             <th>Utilisateur</th>
@@ -573,7 +601,7 @@ include '../includes/sidebar.php';
                         <?php if (!empty($inventaires_history)): ?>
                             <?php foreach ($inventaires_history as $inv): ?>
                                 <tr>
-                                    <td>#<?= $inv['id_inventaire'] ?></td>
+                                    <!-- <td>#<?= $inv['id_inventaire'] ?></td> -->
                                     <td><?= date('d/m/Y H:i', strtotime($inv['date_inventaire'])) ?></td>
                                     <td>
                                         <?php 
@@ -614,9 +642,7 @@ include '../includes/sidebar.php';
                                 <th class="text-center">Seuil</th>
                             </tr>
                         </thead>
-                        <tbody id="historyTableBody">
-                            <!-- Chargé via AJAX -->
-                        </tbody>
+                        <tbody id="historyTableBody"></tbody>
                     </table>
                 </div>
             </div>
@@ -642,10 +668,9 @@ document.getElementById('btnLoadHistory').addEventListener('click', function() {
     fetch(`get_inventaire_history.php?year=${y}&month=${m}`)    
     .then(response => {
         if (!response.ok) {
-            // Si le statut est 404, 500, etc., on lève une erreur pour aller dans le .catch
+            // Si le statut est 404, 500, etc., on lève une erreur
             throw new Error(`Erreur HTTP ${response.status} : ${response.statusText}`);
         }
-        // On essaie de lire la réponse comme du JSON
         return response.json();
     })
     .then(data => {
@@ -654,7 +679,7 @@ document.getElementById('btnLoadHistory').addEventListener('click', function() {
         const tbody = document.getElementById('historyTableBody');
         const meta = document.getElementById('historyMetaInfo');
         
-        // On s'assure que le message d'erreur est caché s'il était affiché
+        // On s'assure que le message d'erreur est caché
         noData.style.display = 'none';
 
         tbody.innerHTML = '';

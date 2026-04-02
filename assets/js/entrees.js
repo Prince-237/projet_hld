@@ -1,3 +1,6 @@
+
+
+
 document.addEventListener('DOMContentLoaded', function() {
 
     // --- MODAL: EDIT LOT ---
@@ -143,3 +146,4 @@ document.addEventListener('DOMContentLoaded', function() {
     updatePartnerList();
     updatePriceAndMargin();
 });
+

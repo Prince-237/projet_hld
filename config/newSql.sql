@@ -181,6 +181,7 @@ CREATE TABLE InventaireDetail (
     stock_theorique INT NOT NULL DEFAULT 0,
     stock_physique INT NOT NULL DEFAULT 0,
     ecart INT GENERATED ALWAYS AS (stock_physique - stock_theorique) STORED,
+    observation text DEFAULT NULL,
     KEY idx_inventaire_detail_inventaire (id_inventaire),
     KEY idx_inventaire_detail_lot (id_lot),
     UNIQUE KEY uk_inventaire_lot (id_inventaire, id_lot),
