@@ -159,12 +159,12 @@ include '../includes/sidebar.php';
 
     <!-- TABLEAU (inchangé) -->
     <table class="table table-bordered shadow-sm">
-        <thead class="table-light">
+        <thead class="table-light table-hover">
             <tr>
                 <th>Nom</th>
                 <th>Catégorie</th>
                 <th>Prix Réf.</th>
-                <th>Profit Margin %</th>
+                <th>Profit Marge %</th>
                 <th class="text-center">Seuil</th>
                 <th class="text-center">Stock Achat</th>
                 <th class="text-center">Stock Don</th>
@@ -190,26 +190,34 @@ include '../includes/sidebar.php';
                     <td class="text-center"><?= $stock_don ?></td>
                     <td class="text-center fw-bold"><?= $stock_total ?></td>
                     <td class="text-nowrap">
-                        <?php if($isAdmin): ?>
-                            <button class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal" data-bs-target="#modalEditProduit"
-                                data-id="<?= $p['id_produit'] ?>"
-                                data-nom="<?= htmlspecialchars($p['nom_medicament']) ?>"
-                                data-prix="<?= $p['prix_unitaire'] ?>"
-                                data-marge="<?= $p['marge_pourcentage'] ?>"
-                                data-seuil="<?= $p['seuil_alerte'] ?>"
-                                data-categorie="<?= $p['id_categorie'] ?>"
-                                title="Modifier">
-                                <i class="bi bi-pencil"></i>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-light" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
+                                <i class="bi bi-chevron-down"></i>
                             </button>
-                            <form method="POST" class="d-inline" onsubmit="return confirm('Supprimer ce médicament ?');">
-                                <input type="hidden" name="id_produit" value="<?= $p['id_produit'] ?>">
-                                <button type="submit" name="btn_delete_produit" class="btn btn-sm btn-outline-danger" title="Supprimer">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </form>
-                        <?php else: ?>
-                            -
-                        <?php endif; ?>
+                            <ul class="dropdown-menu dropdown-menu-end shadow">
+                                <li><a class="dropdown-item" href="details_produit.php?id=<?= $p['id_produit'] ?>"><i class="bi bi-eye me-2"></i>Voir</a></li>
+                                <?php if($isAdmin): ?>
+                                    <li><button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#modalEditProduit"
+                                        data-id="<?= $p['id_produit'] ?>"
+                                        data-nom="<?= htmlspecialchars($p['nom_medicament']) ?>"
+                                        data-prix="<?= $p['prix_unitaire'] ?>"
+                                        data-marge="<?= $p['marge_pourcentage'] ?>"
+                                        data-seuil="<?= $p['seuil_alerte'] ?>"
+                                        data-categorie="<?= $p['id_categorie'] ?>">
+                                        <i class="bi bi-pencil me-2"></i>Modifier
+                                    </button></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <form method="POST" class="m-0" onsubmit="return confirm('Supprimer ce médicament ?');">
+                                            <input type="hidden" name="id_produit" value="<?= $p['id_produit'] ?>">
+                                            <button type="submit" name="btn_delete_produit" class="dropdown-item text-danger">
+                                                <i class="bi bi-trash me-2"></i>Supprimer
+                                            </button>
+                                        </form>
+                                    </li>
+                                <?php endif; ?>
+                            </ul>
+                        </div>
                     </td>
                 </tr>
             <?php endforeach; ?>

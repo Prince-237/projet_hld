@@ -39,15 +39,12 @@ if (!$commande) {
 
 // 🔹 PRODUITS DE LA COMMANDE
 $sqlProduits = "SELECT 
-                    l.id_lot,
-                    l.num_lot,
-                    l.quantite_actuelle,
-                    l.date_expiration,
-                    l.prix_achat_ttc,
-                    p.nom_medicament
-                FROM StockLot l
-                JOIN Produit p ON l.id_produit = p.id_produit
-                LEFT JOIN CommandeDetail cd ON l.id_cmd_det = cd.id_cmd_det
+                    cd.id_cmd_det,
+                    cd.quantite_voulue as quantite_actuelle,
+                    p.nom_medicament,
+                    p.prix_unitaire as prix_achat_ttc
+                FROM CommandeDetail cd
+                JOIN Produit p ON cd.id_produit = p.id_produit
                 WHERE cd.id_commande = ?
                 ORDER BY p.nom_medicament ASC";
 
@@ -129,9 +126,9 @@ $totalGeneral = 0;
                             ?>
                             <tr>
                                 <td><?= htmlspecialchars($p['nom_medicament']) ?></td>
-                                <td><?= htmlspecialchars($p['num_lot']) ?></td>
+                                <td class="text-muted italic">En attente de réception</td>
                                 <td class="text-end"><?= $p['quantite_actuelle'] ?></td>
-                                <td><?= date('d/m/Y', strtotime($p['date_expiration'])) ?></td>
+                                <td class="text-muted small">-</td>
                                 <td class="text-end"><?= number_format($p['prix_achat_ttc'], 2, '.', ' ') ?> F</td>
                                 <td class="text-end"><?= number_format($total, 2, '.', ' ') ?> F</td>
                             </tr>

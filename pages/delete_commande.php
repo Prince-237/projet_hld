@@ -29,7 +29,7 @@ try {
 
     $pdo->commit();
 
-    header("Location: entrees.php?msg=deleted");
+    header("Location: entrees_stock.php?msg=deleted");
     exit();
 
 } catch (Exception $e) {

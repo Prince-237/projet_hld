@@ -19,24 +19,24 @@ if ($isAdmin && isset($_POST['btn_new_user'])) {
     $role = ($_POST['role'] === 'admin') ? 'admin' : 'user';
 
     if (empty($nom) || empty($user) || empty($pass) || empty($email)) {
-        $message = "<div class='alert alert-warning shadow-sm'>⚠️ Veuillez remplir tous les champs.</div>";
+        $message = "<div class='alert alert-warning shadow-sm'>Veuillez remplir tous les champs.</div>";
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $message = "<div class='alert alert-danger shadow-sm'>⚠️ Adresse email invalide.</div>";
+        $message = "<div class='alert alert-danger shadow-sm'> oAdresse email invalide.</div>";
     } else {
         // vérification d'existence
         $stmt = $pdo->prepare("SELECT 1 FROM Utilisateur WHERE username = ? OR email = ?");
         $stmt->execute([$user, $email]);
         if ($stmt->fetch()) {
-            $message = "<div class='alert alert-danger shadow-sm'>❌ Erreur : Le nom d'utilisateur ou l'email est déjà utilisé.</div>";
+            $message = "<div class='alert alert-danger shadow-sm'>Erreur : Le nom d'utilisateur ou l'email est déjà utilisé.</div>";
         } else {
             $pass_hache = password_hash($pass, PASSWORD_DEFAULT);
             $sql = "INSERT INTO Utilisateur (nom_complet, username, email, password, role) VALUES (?, ?, ?, ?, ?)";
             $stmt = $pdo->prepare($sql);
             try {
                 $stmt->execute([$nom, $user, $email, $pass_hache, $role]);
-                $message = "<div class='alert alert-success shadow-sm'>✅ Utilisateur créé avec succès.</div>";
+                $message = "<div class='alert alert-success shadow-sm'>Utilisateur créé avec succès.</div>";
             } catch (PDOException $e) {
-                $message = "<div class='alert alert-danger shadow-sm'>❌ Erreur système lors de la création de l'utilisateur.</div>";
+                $message = "<div class='alert alert-danger shadow-sm'>Erreur système lors de la création de l'utilisateur.</div>";
             }
         }
     }
@@ -139,7 +139,10 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, part.
 
     <div class="row mt-5">
         <div class="col-md-12">
-            <h4>Alertes à traiter d'urgence</h4>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">Lot proche de rupture ou en rupture de stock</h4>
+                <a href="passer_commande.php" class="btn btn-success">Commander les produits en rupture</a>
+            </div>
             <table class="table table-hover shadow-sm">
                 <thead class="table-light">
                     <tr>
@@ -152,12 +155,12 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, part.
                 </thead>
                 <tbody>
                     <?php
-                    // Requête complexe pour récupérer les produits en alerte avec leur stock calculé
-                    $sql_list_alerte = "SELECT p.nom_medicament, p.type_produit, p.seuil_alerte, COALESCE(SUM(l.quantite_actuelle), 0) as stock_total
+                    // Requête complexe pour récupérer les produits en rupture ou en dessous du seuil
+                    $sql_list_alerte = "SELECT p.id_produit, p.nom_medicament, p.type_produit, p.seuil_alerte, COALESCE(SUM(l.quantite_actuelle), 0) as stock_total
                                         FROM Produit p
                                         LEFT JOIN StockLot l ON p.id_produit = l.id_produit
                                         GROUP BY p.id_produit, p.nom_medicament, p.type_produit, p.seuil_alerte
-                                        HAVING stock_total <= p.seuil_alerte
+                                        HAVING stock_total < p.seuil_alerte
                                         ORDER BY stock_total ASC LIMIT 10";
                     $list_alerte = $pdo->query($sql_list_alerte);
                     while($row = $list_alerte->fetch()) {
@@ -166,7 +169,7 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, part.
                             $rowClass = 'text-white';
                         } else {
                             $status = '<span class="badge bg-warning text-dark">Critique</span>';
-                            $rowClass = 'table-warning text-dark';
+                            $rowClass = '';
                         }
                         
                         echo "<tr class='$rowClass'>
@@ -185,8 +188,15 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, part.
     
     <div class="row mt-4">
         <div class="col-md-12">
-            <h4>Lots périmés / Proche de l'expiration</h4>
-            <table class="table table-sm table-striped bg-white shadow-sm">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="mb-0">Lots périmés / Proche de l'expiration</h4>
+                <!-- <?php if ($isAdmin): ?>
+                    <a href="lots_perimes.php" class="btn btn-danger">
+                        Supprimer les lots périmés
+                    </a>
+                <?php endif; ?> -->
+            </div>
+            <table class="table bg-white  table-hover shadow-sm">
                 <thead class="table-light">
                     <tr>
                         <th>Produit</th>
@@ -206,7 +216,7 @@ $expired_lots = $pdo->query("SELECT l.*, p.nom_medicament, p.type_produit, part.
                             $today = strtotime(date('Y-m-d'));
                             if ($exp_ts < $today) {
                                 $status = '<span class="badge bg-dark">Périmé</span>';
-                                $rowClass = 'table-danger';
+                                $rowClass = '';
                             } else {
                                 $status = '<span class="badge bg-warning">Critique</span>';
                                 $rowClass = '';

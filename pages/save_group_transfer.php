@@ -65,7 +65,7 @@ if ($action === 'initiate') {
     }
 
     if (!is_array($items) || count($items) === 0) {
-        flash('Ajoutez au moins un lot au transfert groupé.', 'danger');
+        flash('Ajoutez au moins un lot au transfert.', 'danger');
         header('Location: ' . $redirect);
         exit();
     }
@@ -94,7 +94,7 @@ if ($action === 'initiate') {
     }
 
     if (count($cleanItems) === 0) {
-        flash('Les éléments du transfert groupé ne sont pas valides.', 'danger');
+        flash('Les éléments du transfert ne sont pas valides.', 'danger');
         header('Location: ' . $redirect);
         exit();
     }
@@ -112,9 +112,9 @@ if ($action === 'initiate') {
     ];
 
     if (!saveGroups($dataFile, $groups)) {
-        flash('Impossible de sauvegarder le transfert groupé.', 'danger');
+        flash('Impossible de sauvegarder le transfert.', 'danger');
     } else {
-        flash('Transfert groupé enregistré avec succès.', 'success');
+        flash('Transfert enregistré avec succès.', 'success');
     }
 
     header('Location: ' . $redirect);
@@ -138,13 +138,13 @@ if ($action === 'receive') {
     }
 
     if ($foundIndex === null) {
-        flash('Transfert groupé introuvable.', 'danger');
+        flash('Transfert introuvable.', 'danger');
         header('Location: ' . $redirect);
         exit();
     }
 
     if ($groups[$foundIndex]['status'] !== 'Envoyé') {
-        flash('Ce transfert groupé a déjà été traité.', 'warning');
+        flash('Ce transfert a déjà été traité.', 'warning');
         header('Location: ' . $redirect);
         exit();
     }
@@ -187,7 +187,7 @@ if ($action === 'receive') {
         if (!saveGroups($dataFile, $groups)) {
             flash('Transfert reçu, mais impossible de mettre à jour le statut.', 'warning');
         } else {
-            flash('Transfert groupé marqué comme reçu et traité.', 'success');
+            flash('Transfert marqué comme reçu et traité.', 'success');
         }
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -208,9 +208,9 @@ if ($action === 'delete') {
             }
         }
         if (saveGroups($dataFile, $newGroups)) {
-            flash('Transfert groupé supprimé.', 'success');
+            flash('Transfert supprimé.', 'success');
         } else {
-            flash('Impossible de supprimer le transfert groupé.', 'danger');
+            flash('Impossible de supprimer le transfert.', 'danger');
         }
     }
     header('Location: ' . $redirect);

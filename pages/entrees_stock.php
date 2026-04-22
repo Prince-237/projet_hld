@@ -7,36 +7,19 @@ if (!isset($_SESSION['user_id'])) {
 }
 include '../includes/sidebar.php';
 $isAdmin = ($_SESSION['role'] === 'admin');
-
+ 
+// 🔹 MESSAGES DE SUCCÈS
 $message = '';
+if (isset($_SESSION['success_message'])) {
+    $message = '<div class="alert alert-success alert-dismissible fade show" role="alert">
+                    ' . htmlspecialchars($_SESSION['success_message']) . '
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>';
+    unset($_SESSION['success_message']);
+}
 $typeFilter = isset($_GET['type']) && in_array($_GET['type'], ['Pharmacie', 'Laboratoire']) ? $_GET['type'] : 'Pharmacie';
 $typeProduit = ($typeFilter === 'Laboratoire') ? 'Laboratoire' : 'Medicament';
-
-$sql = "SELECT 
-            cmd.id_commande,
-            cmd.date_commande,
-            part.nom_entite AS fournisseur,
-            part.type AS source_type,
-            u.nom_complet AS utilisateur,
-            COUNT(l.id_lot) AS nb_produits,
-            SUM(l.prix_achat_ttc * l.quantite_actuelle) AS total_commande
-        FROM StockLot l
-        JOIN Produit p ON l.id_produit = p.id_produit
-        LEFT JOIN CommandeDetail cd ON l.id_cmd_det = cd.id_cmd_det
-        LEFT JOIN Commande cmd ON cd.id_commande = cmd.id_commande
-        LEFT JOIN Partenaire part ON cmd.id_partenaire = part.id_partenaire
-        LEFT JOIN Utilisateur u ON cmd.id_user = u.id_user
-        WHERE p.type_produit = ?
-        AND cmd.statut = 'Reçue'
-        AND cmd.deleted_at IS NULL
-        GROUP BY cmd.id_commande
-        ORDER BY cmd.date_commande DESC";
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute([$typeProduit]);
-$lots = $stmt->fetchAll();
-
-
+$statusFilter = isset($_GET['status']) ? $_GET['status'] : '';
 
 // 🔹 récupérer les agents (admins uniquement)
 $stmtAgents = $pdo->prepare("SELECT id_user, nom_complet FROM Utilisateur WHERE role = 'admin' ORDER BY nom_complet");
@@ -50,13 +33,14 @@ $fournisseurs = $stmtFournisseurs->fetchAll();
 
 ?>
 
-<div class="container-fluid mt-4">
+<div class="container mt-4">
     <h2 class="mb-4">Liste des entrées en stock</h2>
 
     <?php if ($message): ?><?= $message ?><?php endif; ?>
 
     <div class="card shadow-sm mb-4">
-        <form id="searchForm" class="m-3">
+        <div class="card-body">
+            <form id="searchForm" class="m-3">
             <div class="row g-2">
 
                 <!-- TYPE -->
@@ -69,10 +53,10 @@ $fournisseurs = $stmtFournisseurs->fetchAll();
                 </div>
 
                 <!-- RECHERCHE -->
-                <div class="col-md-2">
+                <!-- <div class="col-md-2">
                     <label class="form-label">Recherche</label>
                     <input type="text" id="searchInput" class="form-control" placeholder="Fournisseur, agent...">
-                </div>
+                </div> -->
 
                 <!-- FOURNISSEUR -->
                 <div class="col-md-3">
@@ -110,8 +94,6 @@ $fournisseurs = $stmtFournisseurs->fetchAll();
                         <?php endforeach; ?>
 
                     </select>
-                </div>
-
             </div>
         </form>
 
@@ -124,69 +106,22 @@ $fournisseurs = $stmtFournisseurs->fetchAll();
                         <th>Nombre de produits</th>
                         <th>Total</th>
                         <th>Agent</th>
+                        <th>Statut</th>
+                        <th>Statut Paiement</th>
                         <th class="text-center">Actions</th>
                     </tr>
                 </thead>
 
                 <tbody id="tableBody">
-                    <?php if (empty($lots)): ?>
-                        <tr>
-                            <td colspan="6" class="text-center text-muted">Aucune entrée en stock.</td>
-                        </tr>
-                    <?php else: ?>
-                        <?php foreach ($lots as $lot): ?>
-                            <tr>
-                                <td><?= $lot['date_commande'] ? date('d/m/Y H:i', strtotime($lot['date_commande'])) : 'N/A' ?></td>
-                                <td><?= htmlspecialchars($lot['fournisseur'] ?: 'N/A') ?></td>
-                                <td class="text-center"><?= $lot['nb_produits'] ?></td>
-                                <td class="text-end"><?= number_format($lot['total_commande'], 2, '.', ' ') ?> F</td>
-                                <td><?= htmlspecialchars($lot['utilisateur'] ?: '-') ?></td>
-
-                                <td class="text-nowrap">
-
-                                    <!-- Voir -->
-                                    <a href="details_commande_recue.php?id=<?= $lot['id_commande'] ?>"
-                                        class="btn btn-sm btn-outline-primary me-1"
-                                        title="Consulter">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-
-                                    <?php if ($isAdmin): ?>
-
-                                        <!-- Modifier -->
-                                        <a href="edit_commande.php?id=<?= $lot['id_commande'] ?>"
-                                            class="btn btn-sm btn-outline-primary me-1"
-                                            title="Modifier">
-                                            <i class="bi bi-pencil"></i>
-                                        </a>
-
-                                        <!-- Supprimer -->
-                                        <form method="POST" action="delete_commande.php" class="d-inline"
-                                            onsubmit="return confirm('Supprimer cette commande ?');">
-
-                                            <input type="hidden" name="id_commande" value="<?= $lot['id_commande'] ?>">
-
-                                            <button type="submit"
-                                                class="btn btn-sm btn-outline-danger"
-                                                title="Supprimer">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </form>
-
-                                    <?php endif; ?>
-
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                    <tr>
+                        <td colspan="8" class="text-center text-muted">Chargement...</td>
+                    </tr>
                 </tbody>
-                <!-- Les données filtrées seront chargées dynamiquement via fetch_entrees_stock.php -->
             </table>
+        </div>
         </div>
     </div>
 </div>
-
-
 
 <script src="../assets/js/entrees_stock.js" defer></script>
 

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Apr 10, 2026 at 01:08 PM
+-- Generation Time: Apr 13, 2026 at 03:52 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -23,7 +23,7 @@ SET time_zone = "+00:00";
 CREATE DATABASE IF NOT EXISTS laquintinie_projet_1
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE laquintinie_projet_1;
--- -------------------------
+-- --------------------------------------------------------
 
 --
 -- Table structure for table `commande`
@@ -35,6 +35,7 @@ CREATE TABLE `commande` (
   `id_user` int(11) NOT NULL,
   `date_commande` datetime NOT NULL DEFAULT current_timestamp(),
   `statut` enum('En attente','Reçue','Annulée') NOT NULL DEFAULT 'En attente',
+  `statut_paiement` enum('du','payé','partielle','soldé') NOT NULL DEFAULT 'du',
   `deleted_at` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Commandes fournisseurs';
 
@@ -42,31 +43,31 @@ CREATE TABLE `commande` (
 -- Dumping data for table `commande`
 --
 
-INSERT INTO `commande` (`id_commande`, `id_partenaire`, `id_user`, `date_commande`, `statut`, `deleted_at`) VALUES
-(2, 1, 4, '2026-03-21 14:18:11', 'Reçue', NULL),
-(5, 2, 4, '2026-03-21 14:36:18', 'Reçue', NULL),
-(6, 2, 4, '2026-03-22 09:02:32', 'Reçue', NULL),
-(7, 1, 4, '2026-03-28 04:52:15', 'Reçue', NULL),
-(8, 1, 4, '2026-03-28 04:55:27', 'Reçue', NULL),
-(9, 1, 4, '2026-04-01 10:10:11', 'Reçue', '2026-04-02 02:51:14'),
-(10, 3, 4, '2026-04-01 10:19:27', 'Reçue', NULL),
-(12, 1, 4, '2026-04-01 11:37:02', 'En attente', NULL),
-(13, 1, 4, '2026-04-01 11:37:14', 'Reçue', NULL),
-(19, 1, 4, '2026-04-01 16:04:33', 'Reçue', NULL),
-(20, 1, 4, '2026-04-02 01:20:20', 'Reçue', NULL),
-(25, 2, 4, '2026-04-02 08:51:46', 'Reçue', NULL),
-(37, 3, 4, '2026-04-02 14:28:22', 'Reçue', NULL),
-(39, 3, 4, '2026-04-02 15:23:59', 'Reçue', NULL),
-(42, 1, 4, '2026-04-03 05:10:42', 'En attente', NULL),
-(43, 1, 4, '2026-04-05 06:53:36', 'En attente', NULL),
-(44, 2, 4, '2026-04-05 07:42:55', 'Reçue', NULL),
-(45, 2, 4, '2026-04-05 08:14:02', 'Reçue', NULL),
-(46, 1, 4, '2026-04-05 11:34:39', 'Reçue', NULL),
-(48, 3, 4, '2026-04-08 18:02:35', 'Reçue', NULL),
-(49, 2, 4, '2026-04-08 18:04:02', 'Reçue', NULL),
-(50, 3, 4, '2026-04-09 13:50:51', 'Reçue', NULL),
-(54, 1, 4, '2026-04-09 18:06:24', '', NULL),
-(55, 1, 4, '2026-04-09 18:08:19', '', NULL);
+INSERT INTO `commande` (`id_commande`, `id_partenaire`, `id_user`, `date_commande`, `statut`, `statut_paiement`, `deleted_at`) VALUES
+(2, 1, 4, '2026-03-21 14:18:11', 'Reçue', 'du', NULL),
+(5, 2, 4, '2026-03-21 14:36:18', 'Reçue', 'du', NULL),
+(6, 2, 4, '2026-03-22 09:02:32', 'Reçue', 'du', NULL),
+(7, 1, 4, '2026-03-28 04:52:15', 'Reçue', 'du', NULL),
+(8, 1, 4, '2026-03-28 04:55:27', 'Reçue', 'du', NULL),
+(9, 1, 4, '2026-04-01 10:10:11', 'Reçue', 'du', '2026-04-02 02:51:14'),
+(10, 3, 4, '2026-04-01 10:19:27', 'Reçue', 'du', NULL),
+(12, 1, 4, '2026-04-01 11:37:02', 'En attente', 'du', NULL),
+(13, 1, 4, '2026-04-01 11:37:14', 'Reçue', 'du', NULL),
+(19, 1, 4, '2026-04-01 16:04:33', 'Reçue', 'du', NULL),
+(20, 1, 4, '2026-04-02 01:20:20', 'Reçue', 'du', NULL),
+(25, 2, 4, '2026-04-02 08:51:46', 'Reçue', 'du', NULL),
+(37, 3, 4, '2026-04-02 14:28:22', 'Reçue', 'du', NULL),
+(39, 3, 4, '2026-04-02 15:23:59', 'Reçue', 'du', NULL),
+(42, 1, 4, '2026-04-03 05:10:42', 'En attente', 'du', NULL),
+(43, 1, 4, '2026-04-05 06:53:36', 'En attente', 'du', '2026-04-13 15:24:21'),
+(44, 2, 4, '2026-04-05 07:42:55', 'Reçue', 'du', NULL),
+(45, 2, 4, '2026-04-05 08:14:02', 'Reçue', 'du', NULL),
+(46, 1, 4, '2026-04-05 11:34:39', 'Reçue', 'du', NULL),
+(48, 3, 4, '2026-04-08 18:02:35', 'Reçue', 'partielle', NULL),
+(49, 2, 4, '2026-04-08 18:04:02', 'Reçue', 'du', NULL),
+(50, 3, 4, '2026-04-09 13:50:51', 'Reçue', 'du', NULL),
+(54, 1, 4, '2026-04-09 18:06:24', '', 'du', NULL),
+(55, 1, 4, '2026-04-09 18:08:19', '', 'du', NULL);
 
 -- --------------------------------------------------------
 
@@ -389,22 +390,24 @@ CREATE TABLE `transfert` (
   `id_source` int(11) NOT NULL,
   `id_destination` int(11) NOT NULL,
   `id_user` int(11) NOT NULL,
-  `num_bordereau` varchar(100) NOT NULL
+  `num_bordereau` varchar(100) NOT NULL,
+  `date_transfert` datetime NOT NULL DEFAULT current_timestamp(),
+  `statut` enum('Recue','Envoyé') NOT NULL DEFAULT 'Envoyé'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `transfert`
 --
 
-INSERT INTO `transfert` (`id_transfert`, `id_source`, `id_destination`, `id_user`, `num_bordereau`) VALUES
-(6, 1, 2, 4, 'TR-20260402151133-387'),
-(7, 1, 4, 4, 'TR-20260402152334-847'),
-(8, 1, 3, 4, 'TR-20260405081744-992'),
-(9, 4, 3, 4, 'TR-20260405085509-505'),
-(10, 1, 3, 4, 'TR-20260407173023-729'),
-(11, 3, 2, 4, 'TR-20260408092632-516'),
-(12, 1, 3, 4, 'TR-20260410085741-122'),
-(13, 3, 2, 4, 'TR-20260410120338-980');
+INSERT INTO `transfert` (`id_transfert`, `id_source`, `id_destination`, `id_user`, `num_bordereau`, `date_transfert`, `statut`) VALUES
+(6, 1, 2, 4, 'TR-20260402151133-387', '2026-04-13 14:56:22', 'Envoyé'),
+(7, 1, 4, 4, 'TR-20260402152334-847', '2026-04-13 14:56:22', 'Envoyé'),
+(8, 1, 3, 4, 'TR-20260405081744-992', '2026-04-13 14:56:22', 'Envoyé'),
+(9, 4, 3, 4, 'TR-20260405085509-505', '2026-04-13 14:56:22', 'Envoyé'),
+(10, 1, 3, 4, 'TR-20260407173023-729', '2026-04-13 14:56:22', 'Envoyé'),
+(11, 3, 2, 4, 'TR-20260408092632-516', '2026-04-13 14:56:22', 'Envoyé'),
+(12, 1, 3, 4, 'TR-20260410085741-122', '2026-04-13 14:56:22', 'Envoyé'),
+(13, 3, 2, 4, 'TR-20260410120338-980', '2026-04-13 14:56:22', 'Envoyé');
 
 -- --------------------------------------------------------
 
@@ -464,7 +467,9 @@ CREATE TABLE `utilisateur` (
 
 INSERT INTO `utilisateur` (`id_user`, `nom_complet`, `username`, `password`, `role`, `email`) VALUES
 (2, 'Dupont Jean', 'pharmacien1', '6ad14ba9986e3615423dfca256d04e3f', 'user', 'jean.pharmacie@laquintinie.cm'),
-(4, 'Derlich', 'derlich', '$2y$10$egfxa2fon9/XyrlmTgkHJ.ZQneqskB6SETV9o9SvMciygybHbi0Yi', 'admin', 'derlich@gmail.com');
+(4, 'Derlich', 'derlich', '$2y$10$egfxa2fon9/XyrlmTgkHJ.ZQneqskB6SETV9o9SvMciygybHbi0Yi', 'admin', 'derlich@gmail.com'),
+(5, 'userr', 'userr', '$2y$10$F8L.7ubQMSf2odSDfznWHufT7OpvxEMufKgVRaAAqCRCGXHkh13qK', 'user', 'user12@gmail.com'),
+(6, 'userrr', 'userrr', '$2y$10$a7lpjg8KIPj55muSkkg9qeraYX44yBr/0EvO82xhHflpjRU/cOe3G', 'user', 'userrr@gmail.com');
 
 --
 -- Indexes for dumped tables
@@ -682,7 +687,7 @@ ALTER TABLE `transfertdetail`
 -- AUTO_INCREMENT for table `utilisateur`
 --
 ALTER TABLE `utilisateur`
-  MODIFY `id_user` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id_user` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- Constraints for dumped tables

@@ -87,10 +87,10 @@ $pvs = $pdo->query("SELECT id_point_vente, nom_point_vente FROM PointVente ORDER
 <div class="container mt-4">
   <h2 class="mb-4">Bilan Financier — <?= htmlspecialchars(date('F', mktime(0,0,0,$month,1,$year)))." ". $year ?></h2>
 
-  <form method="get" class="row g-3 mb-4 bg-white p-3 shadow-sm rounded">
+  <form id="filterForm" class="row g-3 mb-4 bg-white p-3 shadow-sm rounded">
     <div class="col-md-3">
       <label class="form-label">Mois</label>
-      <select name="m" class="form-select">
+      <select id="monthSelect" name="m" class="form-select">
         <?php foreach ($months as $m): ?>
           <option value="<?= $m['month'] ?>" <?= ($m['month']==$month && $m['year']==$year) ? 'selected' : '' ?>>
             <?= htmlspecialchars($m['label']) ?>
@@ -101,16 +101,16 @@ $pvs = $pdo->query("SELECT id_point_vente, nom_point_vente FROM PointVente ORDER
 
     <div class="col-md-3">
       <label class="form-label">Année</label>
-      <select name="y" class="form-select">
+      <select id="yearSelect" name="y" class="form-select">
         <?php for ($y = date('Y'); $y >= date('Y')-2; $y--): ?>
           <option value="<?= $y ?>" <?= ($y==$year) ? 'selected' : '' ?>><?= $y ?></option>
         <?php endfor; ?>
       </select>
     </div>
 
-    <div class="col-md-4">
+    <div class="col-md-3">
       <label class="form-label">Point de vente</label>
-      <select name="pv" class="form-select">
+      <select id="pvSelect" name="pv" class="form-select">
         <option value="">Tous</option>
         <?php foreach ($pvs as $pv): ?>
           <option value="<?= $pv['id_point_vente'] ?>" <?= ($pointId == $pv['id_point_vente']) ? 'selected' : '' ?>>
@@ -119,72 +119,42 @@ $pvs = $pdo->query("SELECT id_point_vente, nom_point_vente FROM PointVente ORDER
         <?php endforeach; ?>
       </select>
     </div>
-
-    <div class="col-md-2 d-flex align-items-end">
-        <button type="submit" class="btn btn-primary w-100">Voir</button>
-    </div>
   </form>
 
-  <div class="card shadow-sm">
-  <div class="card-body">
-  <table class="table table-striped table-hover">
-    <thead class="table-light">
-      <tr>
-          <th>Point de vente</th>
-          <th class="text-end">Chiffre d'Affaires (Ventes)</th>
-          <th class="text-end">Prix d'Achat</th>
-          <th class="text-end fw-bold">Bénéfice Net</th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($filtered as $r): ?>
-        <tr>
-          <td><?= htmlspecialchars($r['nom_point_vente']) ?></td>
-          <td class="text-end"><?= number_format($r['chiffre_affaires'], 0, ',', ' ') ?> FCFA</td>
-          <td class="text-end text-muted"><?= number_format($r['cout_achat'], 0, ',', ' ') ?> FCFA</td>
-          <td class="text-end fw-bold text-success"><?= number_format($r['benefice'], 0, ',', ' ') ?> FCFA</td>
-        </tr>
-      <?php endforeach; ?>
-    </tbody>
-    <tfoot>
-      <tr class="table-dark">
-          <th colspan="3">Total Bénéfice Global (Période sélectionnée)</th>
-          <th class="text-end"><?= number_format($total_global, 0, ',', ' ') ?> FCFA</th>
-      </tr>
-    </tfoot>
-  </table>
-  </div>
-  </div>
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const monthSelect = document.getElementById('monthSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    const pvSelect = document.getElementById('pvSelect');
+    const contentDiv = document.getElementById('bilanContent');
 
-  <div class="card shadow-sm mt-4">
-      <div class="card-header bg-light">
-          <h5 class="mb-0">Classement des produits les plus sortis</h5>
-      </div>
-      <div class="card-body">
-          <table class="table table-striped table-hover table-sm">
-              <thead>
-                  <tr>
-                      <th>Produit</th>
-                      <th>Type</th>
-                      <th class="text-center">Quantité Sortie</th>
-                      <th class="text-end">Montant Total</th>
-                  </tr>
-              </thead>
-              <tbody>
-                  <?php foreach ($stats_produits as $sp): ?>
-                      <tr>
-                          <td><?= htmlspecialchars($sp['nom_medicament']) ?></td>
-                          <td><span class="badge bg-secondary"><?= htmlspecialchars($sp['type_produit']) ?></span></td>
-                          <td class="text-center fw-bold"><?= $sp['total_qte'] ?></td>
-                          <td class="text-end"><?= number_format($sp['total_valeur'], 0, ',', ' ') ?> FCFA</td>
-                      </tr>
-                  <?php endforeach; ?>
-                  <?php if (empty($stats_produits)): ?>
-                      <tr><td colspan="4" class="text-center text-muted">Aucune sortie enregistrée pour cette période.</td></tr>
-                  <?php endif; ?>
-              </tbody>
-          </table>
-      </div>
+    function loadData() {
+      const params = new URLSearchParams({
+        y: yearSelect.value,
+        m: monthSelect.value,
+        pv: pvSelect.value
+      });
+
+      fetch('fetch_bilan_financier.php?' + params.toString())
+        .then(res => res.text())
+        .then(data => {
+          contentDiv.innerHTML = data;
+        })
+        .catch(err => {
+          console.error('Erreur:', err);
+          contentDiv.innerHTML = '<div class="alert alert-danger">Erreur de chargement des données.</div>';
+        });
+    }
+
+    [monthSelect, yearSelect, pvSelect].forEach(el => {
+      el.addEventListener('change', loadData);
+    });
+
+    window.addEventListener('load', loadData);
+  });
+  </script>
+
+  <div id="bilanContent">
+
   </div>
-</div>
 <?php include '../includes/footer.php'; ?>

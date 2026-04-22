@@ -4,6 +4,7 @@ const fournisseur = document.getElementById('fournisseurFilter');
 const dateStart = document.getElementById('dateFilterStart');
 const dateEnd = document.getElementById('dateFilterEnd');
 const agent = document.getElementById('agentFilter');
+const status = document.getElementById('statusFilter');
 const tableBody = document.getElementById('tableBody');
 
 function loadData() {
@@ -15,7 +16,8 @@ function loadData() {
         fournisseur: fournisseur ? fournisseur.value : '',
         dateStart: dateStart ? dateStart.value : '',
         dateEnd: dateEnd ? dateEnd.value : '',
-        agent: agent ? agent.value : ''
+        agent: agent ? agent.value : '',
+        status: status ? status.value : ''
     });
 
     fetch('fetch_entrees_stock.php?' + params.toString())
@@ -25,11 +27,11 @@ function loadData() {
         })
         .catch(err => {
             console.error('Erreur fetch_entrees_stock:', err);
-            tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Erreur de chargement des données.</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Erreur de chargement des données.</td></tr>';
         });
 }
 
-[type, searchInput, fournisseur, dateStart, dateEnd, agent].forEach(el => {
+[type, searchInput, fournisseur, dateStart, dateEnd, agent, status].forEach(el => {
     if (!el) return;
     el.addEventListener('input', loadData);
     el.addEventListener('change', loadData);

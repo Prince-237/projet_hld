@@ -8,7 +8,7 @@ if (!isset($_SESSION['user_id'])) {
 $isAdmin = ($_SESSION['role'] === 'admin');
 
 $message = '';
-$typeFilter = isset($_REQUEST['type']) && in_array($_REQUEST['type'], ['Pharmacie', 'Laboratoire']) ? $_REQUEST['type'] : 'Pharmacie';
+$typeFilter = isset($_REQUEST['type']) && in_array($_REQUEST['type'], ['Medicament', 'Laboratoire']) ? $_REQUEST['type'] : 'Medicament';
 $typeProduit = ($typeFilter === 'Laboratoire') ? 'Laboratoire' : 'Medicament';
 
 $stmtAgents = $pdo->prepare("SELECT id_user, nom_complet FROM Utilisateur WHERE role = 'admin' ORDER BY nom_complet");
@@ -39,8 +39,9 @@ if ($isAdmin && isset($_POST['btn_creer_commande'])) {
     } else {
         try {
             $pdo->beginTransaction();
-            $stmtCmd = $pdo->prepare("INSERT INTO Commande (id_partenaire, id_user, date_commande, statut) VALUES (?, ?, NOW(), 'En attente')");
-            $stmtCmd->execute([$id_f, $_SESSION['user_id']]);
+            $statut_paiement = isset($_POST['statut_paiement']) && in_array($_POST['statut_paiement'], ['du', 'partielle', 'payé', 'soldé']) ? $_POST['statut_paiement'] : 'du';
+            $stmtCmd = $pdo->prepare("INSERT INTO Commande (id_partenaire, id_user, date_commande, statut, statut_paiement) VALUES (?, ?, NOW(), 'En attente', ?)");
+            $stmtCmd->execute([$id_f, $_SESSION['user_id'], $statut_paiement]);
             $id_commande = $pdo->lastInsertId();
 
             $stmtDet = $pdo->prepare("INSERT INTO CommandeDetail (id_commande, id_produit, quantite_voulue) VALUES (?, ?, ?)");
@@ -236,7 +237,7 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
 ?>
 
 <div class="container-fluid mt-4">
-    <h2 class="mb-4">Gestion des Achats(Commandes) - Entrées</h2>
+    <h2 class="mb-4">Ajouter un Achat(Commande)</h2>
 
     <?php if ($message): ?><?= $message ?><?php endif; ?>
 
@@ -258,17 +259,15 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                             <?php if (count($pharma)): ?>
                                 <optgroup label="Medicament">
                                     <?php foreach ($pharma as $p): ?>
-                                        <option value="<?= $p['id_produit'] ?>" data-nom="<?= htmlspecialchars($p['nom_medicament']) ?>" data-prix="<?= $p['prix_unitaire'] ?>" data-marge="<?= $p['marge_pourcentage'] ?>">
                                         <option value="<?= $p['id_produit'] ?>" data-nom="<?= htmlspecialchars($p['nom_medicament']) ?>" data-prix="<?= $p['prix_unitaire'] ?>" data-marge="<?= $p['marge_pourcentage'] ?>" <?= (isset($_GET['id_p']) && $_GET['id_p'] == $p['id_produit']) ? 'selected' : '' ?>>
                                             <?= htmlspecialchars($p['nom_medicament']) ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </optgroup>
-            <?php endif; ?>
+                            <?php endif; ?>
                             <?php if (count($labo)): ?>
                                 <optgroup label="Laboratoire">
                                     <?php foreach ($labo as $p): ?>
-                                        <option value="<?= $p['id_produit'] ?>" data-nom="<?= htmlspecialchars($p['nom_medicament']) ?>" data-prix="<?= $p['prix_unitaire'] ?>" data-marge="<?= $p['marge_pourcentage'] ?>">
                                         <option value="<?= $p['id_produit'] ?>" data-nom="<?= htmlspecialchars($p['nom_medicament']) ?>" data-prix="<?= $p['prix_unitaire'] ?>" data-marge="<?= $p['marge_pourcentage'] ?>" <?= (isset($_GET['id_p']) && $_GET['id_p'] == $p['id_produit']) ? 'selected' : '' ?>>
                                             <?= htmlspecialchars($p['nom_medicament']) ?>
                                         </option>
@@ -301,15 +300,23 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                         </div>
                     </div>
                     <div class="col-md-2">
-                        <button type="button" id="btn_ajouter_au_panier" class="btn btn-secondary w-100">
-                            <i class="bi bi-plus"></i> Ajouter
-                        </button>
+                        <label for="statut_paiement" class="form-label fw-bold">Statut de paiement</label>
+                        <select name="statut_paiement" id="statut_paiement" class="form-select" required>
+                            <option value="du" selected>Du</option>
+                            <option value="partielle">Partielle</option>
+                            <option value="payé">Payé</option>
+                            <option value="soldé">Soldé</option>
+                        </select>
                     </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="button" id="btn_ajouter_au_panier" class="btn btn-secondary w-100">
+                        Ajouter
+                    </button>
                 </div>
 
                 <form method="POST" id="form_commande_panier" style="display:none;">
-                    <input type="hidden" name="id_f" id="hidden_id_f">
-                    <input type="hidden" name="type" id="hidden_type" value="<?= htmlspecialchars($typeFilter) ?>">
+                    <input type="hidden" name="id_f" id="hidden_id_f">                    <input type="hidden" name="statut_paiement" id="hidden_statut_paiement" value="du">                    <input type="hidden" name="type" id="hidden_type" value="<?= htmlspecialchars($typeFilter) ?>">
                     <table class="table table-bordered table-sm mb-3">
                         <thead class="table-light">
                             <tr>
@@ -331,9 +338,11 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                         </tfoot>
                     </table>
 
+
+
                     <div class="text-end">
                         <button type="submit" name="btn_creer_commande" class="btn btn-primary btn-lg">
-                            <i class="bi bi-check-circle"></i> Créer la commande
+                            Créer la commande
                         </button>
                     </div>
                 </form>
@@ -343,10 +352,10 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
     <?php endif; ?>
 
     <!-- FORMULAIRE RECHERCHE + FILTRE TYPE -->
-    <form id="searchForm" class="mb-3">
+    <!-- <form id="searchForm" class="mb-3">
         <div class="row g-2">
 
-            <!-- TYPE -->
+            TYPE
             <div class="col-md-2">
                 <label class="form-label">Type</label>
                 <select id="typeFilter" name="type" class="form-select">
@@ -355,7 +364,7 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                 </select>
             </div>
 
-            <!-- FOURNISSEUR -->
+            FOURNISSEUR
             <div class="col-md-2">
                 <label class="form-label">Fournisseur</label>
                 <select id="fournisseurFilter" name="fournisseur" class="form-select">
@@ -366,13 +375,13 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                 </select>
             </div>
 
-            <!-- RECHERCHE -->
+            RECHERCHE
             <div class="col-md-2">
                 <label class="form-label">Recherche</label>
                 <input type="text" id="searchInput" name="search" class="form-control" placeholder="Fournisseur, agent...">
             </div>
 
-            <!-- DATE -->
+            DATE
             <div class="col-md-2">
                 <label class="form-label">Date (du)</label>
                 <input type="date" id="dateFilterStart" name="dateStart" class="form-control">
@@ -382,7 +391,7 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                 <input type="date" id="dateFilterEnd" name="dateEnd" class="form-control">
             </div>
 
-            <!-- AGENT -->
+            AGENT
             <div class="col-md-2">
                 <label class="form-label">Agent</label>
                 <select id="agentFilter" name="agent" class="form-select">
@@ -394,12 +403,12 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
             </div>
 
         </div>
-    </form>
+    </form> -->
 
 
-    <!-- TABLEAU COMMANDES EN ATTENTE -->
-    <div class="card shadow-sm mb-4 border-warning">
-        <div class="card-header bg-warning-subtle text-dark d-flex justify-content-between align-items-center">
+    <!-- TABLEAU COMMANDES EN ATTENTE
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
             <strong>Liste des Commandes en Attente de Réception</strong>
         </div>
         <div class="table-responsive p-2">
@@ -414,7 +423,7 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                         <th class="text-end">Action</th>
                     </tr>
                 </thead>
-                <!-- ID DISTINCT pour le tableau des commandes en attente -->
+                ID DISTINCT pour le tableau des commandes en attente
                 <tbody id="attenteTableBody">
                     <?php if (empty($attentes)): ?>
                         <tr>
@@ -433,15 +442,14 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                                 <td class="text-center">
                                     <div class="btn-group">
                                         <a href="details_commande_attente.php?id=<?= $att['id_commande'] ?>"
-                                            class="btn btn-sm btn-outline-primary me-1"
-                                            title="Voir">
+                                            class="btn btn-sm btn-outline-primary me-1" title="Voir">
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         <a href="reception_commande.php?id_commande=<?= $att['id_commande'] ?>"
                                             class="btn btn-sm btn-outline-success me-1" title="Réceptionner">
                                             <i class="bi bi-check2-circle"></i>
                                         </a>
-                                        <a href="edit_commande.php?id=<?= $att['id_commande'] ?>"
+                                        <a href="edit_commande_attente.php?id=<?= $att['id_commande'] ?>&redirect=entrees.php"
                                             class="btn btn-sm btn-outline-secondary me-1" title="Modifier la commande">
                                             <i class="bi bi-pencil"></i>
                                         </a>
@@ -459,9 +467,9 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                 </tbody>
             </table>
         </div>
-    </div>
+    </div> -->
 
-    
+
 
 </div>
 
@@ -593,6 +601,7 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
             const btnAjouter = document.getElementById('btn_ajouter_au_panier');
             const selectProd = document.getElementById('select_produit_entree');
             const selectFourn = document.getElementById('select_fournisseur_temp');
+            const selectStatutPaiement = document.getElementById('statut_paiement');
             const inputQte = document.getElementById('input_qte');
             const inputPrix = document.getElementById('input_prix_achat');
             const inputMarge = document.getElementById('input_marge');
@@ -641,12 +650,14 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
 
             function fillProductDefaults() {
                 if (!selectProd || !inputPrix || !inputMarge) return;
-                const opt = selectProd.options[selectProd.selectedIndex];
-                if (!opt || !opt.value) return;
-                inputPrix.value = opt.getAttribute('data-prix') || 0;
-                inputMarge.value = opt.getAttribute('data-marge') || 20;
+                const selectedOption = selectProd.options[selectProd.selectedIndex];
+                if (selectedOption && selectedOption.value !== "") {
+                    inputPrix.value = selectedOption.getAttribute('data-prix') || 0;
+                    inputMarge.value = selectedOption.getAttribute('data-marge') || 20;
+                }
             }
 
+            // Remplissage automatique au changement
             selectProd.addEventListener('change', fillProductDefaults);
             fillProductDefaults();
 
@@ -659,22 +670,34 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                 const prodOpt = selectProd.options[selectProd.selectedIndex];
                 const fournOpt = selectFourn.options[selectFourn.selectedIndex];
 
-                if (!prodId || !fournId || qte < 1) {
+                if (!prodId || !fournId || isNaN(qte) || qte < 1) {
                     alert("Veuillez sélectionner un produit, un fournisseur et une quantité.");
                     return;
                 }
 
-                hiddenIdF.value = fournId;
-                selectFourn.disabled = true;
+                // Vérifier si le produit existe déjà dans le panier
+                const existingItem = items.find(item => item.id == prodId && item.fournisseurNom === fournOpt.text);
+                
+                if (existingItem) {
+                    // Si le produit existe déjà, incrémenter la quantité
+                    existingItem.qte += qte;
+                } else {
+                    // Sinon, ajouter un nouvel item
+                    hiddenIdF.value = fournId;
+                    selectFourn.disabled = true;
+                    selectStatutPaiement.disabled = true;
+                    document.getElementById('hidden_statut_paiement').value = selectStatutPaiement.value;
 
-                items.push({
-                    id: prodId,
-                    nom: prodOpt.getAttribute('data-nom'),
-                    fournisseurNom: fournOpt.text,
-                    prix: prix,
-                    marge: marge,
-                    qte: qte
-                });
+                    items.push({
+                        id: prodId,
+                        nom: prodOpt.getAttribute('data-nom'),
+                        fournisseurNom: fournOpt.text,
+                        prix: prix,
+                        marge: marge,
+                        qte: qte
+                    });
+                }
+                
                 updatePanier();
             });
 
@@ -733,103 +756,47 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                 });
             }
 
-            // --- Ouvrir le modal d'édition de lot ---
-            document.addEventListener('click', function(e) {
-                const btn = e.target.closest('.btnEditLot');
-                if (btn) {
-                    document.getElementById('edit_id_lot').value = btn.dataset.id;
-                    document.getElementById('edit_num_lot').value = btn.dataset.num;
-                    document.getElementById('edit_exp').value = btn.dataset.exp;
-                    document.getElementById('edit_qte').value = btn.dataset.qte;
-                    document.getElementById('edit_prix').value = btn.dataset.prix;
-                    new bootstrap.Modal(document.getElementById('modalEditLot')).show();
-                }
-            });
         });
 
-        // =========================================================
-        // AJAX : rafraîchissement des DEUX tableaux selon les filtres
-        // =========================================================
-        const typeFilter       = document.getElementById('typeFilter');
+        // ============================================================
+        // FILTRES AJAX : Mise à jour du tableau des commandes en attente
+        // ============================================================
+        const typeFilter = document.getElementById('typeFilter');
         const fournisseurFilter = document.getElementById('fournisseurFilter');
-        const searchInput      = document.getElementById('searchInput');
-        const dateFilterStart  = document.getElementById('dateFilterStart');
-        const dateFilterEnd    = document.getElementById('dateFilterEnd');
-        const agentFilter      = document.getElementById('agentFilter');
-
-        // Tableau des entrées reçues (géré par fetch_entrees.php)
-        const tableBody        = document.getElementById('tableBody');
-
-        // Tableau des commandes en attente (géré par fetch_commandes_attente.php)
+        const searchInput = document.getElementById('searchInput');
+        const dateFilterStart = document.getElementById('dateFilterStart');
+        const dateFilterEnd = document.getElementById('dateFilterEnd');
+        const agentFilter = document.getElementById('agentFilter');
         const attenteTableBody = document.getElementById('attenteTableBody');
-        const badgeAttente     = document.getElementById('badge_attente');
 
         function getFilterParams() {
             return new URLSearchParams({
-                type:        typeFilter.value,
-                fournisseur: fournisseurFilter.value,
-                search:      searchInput.value,
-                dateStart:   dateFilterStart.value,
-                dateEnd:     dateFilterEnd.value,
-                agent:       agentFilter.value
-                type:        typeFilter?.value || '',
+                type: typeFilter?.value || '',
                 fournisseur: fournisseurFilter?.value || '',
-                search:      searchInput?.value || '',
-                dateStart:   dateFilterStart?.value || '',
-                dateEnd:     dateFilterEnd?.value || '',
-                agent:       agentFilter?.value || ''
+                search: searchInput?.value || '',
+                dateStart: dateFilterStart?.value || '',
+                dateEnd: dateFilterEnd?.value || '',
+                agent: agentFilter?.value || ''
             });
         }
 
-        // Rafraîchir le tableau des entrées reçues
-        function fetchEntrees() {
         function fetchAll() {
-            fetch('fetch_entrees.php?' + getFilterParams())
+            // On appelle un script PHP qui renvoie le HTML du tableau filtré
+            fetch('fetch_commandes_attente.php?' + getFilterParams().toString())
                 .then(r => r.text())
-                .then(html => { tableBody.innerHTML = html; })
                 .then(html => {
                     if (attenteTableBody) attenteTableBody.innerHTML = html;
                 })
-                .catch(err => console.error('Erreur fetch_entrees:', err));
+                .catch(err => console.error('Erreur filtrage:', err));
         }
 
-        // Rafraîchir le tableau des commandes en attente
-        function fetchCommandesAttente() {
-            fetch('fetch_commandes_attente.php?' + getFilterParams())
-                .then(r => r.json())
-                .then(data => {
-                    if (data.html !== undefined) {
-                        attenteTableBody.innerHTML = data.html;
-                    }
-                    if (badgeAttente && data.count !== undefined) {
-                        badgeAttente.textContent = data.count;
-                    }
-                })
-                .catch(err => console.error('Erreur fetch_commandes_attente:', err));
-        }
-        // Écouter tous les filtres
         [typeFilter, fournisseurFilter, dateFilterStart, dateFilterEnd, agentFilter].forEach(el => {
             if (el) el.addEventListener('change', fetchAll);
         });
 
-        function fetchAll() {
-            fetchEntrees();
-            fetchCommandesAttente();
         if (searchInput) {
             searchInput.addEventListener('input', fetchAll);
         }
-
-        // Écouter tous les filtres
-        [typeFilter, fournisseurFilter, dateFilterStart, dateFilterEnd]
-            .forEach(el => el.addEventListener('change', fetchAll));
-        [searchInput, agentFilter]
-            .forEach(el => el.addEventListener('input', fetchAll));
-
-        // Chargement initial
-        document.addEventListener('DOMContentLoaded', function() {
-            // Déclenche une synchronisation initiale au cas où des filtres par défaut sont actifs
-            // Le rendu PHP initial est déjà correct, on n'appelle fetchAll() qu'en cas de changement
-        });
     </script>
 <?php endif; ?>
 

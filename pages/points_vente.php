@@ -90,7 +90,7 @@ include '../includes/sidebar.php';
 
     <div class="card shadow">
         <div class="card-body">
-            <table class="table table-striped table-hover">
+            <table class="table table-hover">
                 <thead class="table-light">
                     <tr>
                         <th>ID</th>

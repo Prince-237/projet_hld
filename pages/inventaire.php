@@ -132,7 +132,7 @@ if ($isAdmin && isset($_GET['action']) && $_GET['action'] === 'export') {
     $rowIndex = 2; // Excel commence à la ligne 1 pour l'en-tête
     foreach ($lots as $l) {
         $formula = sprintf('=E%d-D%d', $rowIndex, $rowIndex);
-        fputcsv($output, [$l['id_lot'], $l['nom_medicament'], $l['num_lot'], $l['quantite_actuelle'], '', $formula, 'Renseigner si écart différent de 0'], ';');
+        fputcsv($output, [$l['id_lot'], $l['nom_medicament'], $l['num_lot'], $l['quantite_actuelle'], '', $formula, ''], ';');
         $rowIndex++;
     }
     fclose($output);
@@ -204,7 +204,14 @@ if ($isAdmin && isset($_POST['btn_import_inventaire'])) {
             $id_inventaire = $pdo->lastInsertId();
 
             $file = fopen($fileName, 'r');
-            fgetcsv($file); // Ignorer la ligne d'en-tête
+            $headers = fgetcsv($file, 1000, ';');
+            if ($headers === FALSE || count($headers) < 7) {
+                throw new Exception('Format CSV invalide : en-tête manquante ou colonne observation absente.');
+            }
+            $headerNames = array_map('trim', $headers);
+            if (strtolower($headerNames[6]) !== 'observation') {
+                throw new Exception('Format CSV invalide : la 7e colonne doit être "observation".');
+            }
 
             $ligne = 1; // Compteur pour indiquer la ligne en erreur
             $stmtDetailObs = $hasObservationColumn
@@ -292,20 +299,54 @@ if ($isAdmin && isset($_POST['btn_save_manual_inventaire'])) {
             $stmt->execute([$_SESSION['user_id']]);
             $id_inventaire = $pdo->lastInsertId();
 
-            // Traitement des lignes
+            $observation = trim($_POST['observation'] ?? '');
+            $requiresObservation = false;
+            $stmtInsertDetail = $hasObservationColumn
+                ? $pdo->prepare("INSERT INTO InventaireDetail (id_inventaire, id_lot, stock_theorique, stock_physique, observation) VALUES (?, ?, ?, ?, ?)")
+                : $pdo->prepare("INSERT INTO InventaireDetail (id_inventaire, id_lot, stock_theorique, stock_physique) VALUES (?, ?, ?, ?)");
+
+            // Vérification des écarts avant insertion
             if (isset($_POST['stocks']) && is_array($_POST['stocks'])) {
                 foreach ($_POST['stocks'] as $id_lot => $qty_physique) {
                     $id_lot = (int)$id_lot;
                     $qty_physique = (int)$qty_physique;
 
-                    // Récupération du stock théorique
                     $stmtLot = $pdo->prepare("SELECT quantite_actuelle FROM StockLot WHERE id_lot = ?");
                     $stmtLot->execute([$id_lot]);
                     $stock_theo = $stmtLot->fetchColumn();
-                    if ($stock_theo === false) continue;
+                    if ($stock_theo === false) {
+                        continue;
+                    }
 
-                    $pdo->prepare("INSERT INTO InventaireDetail (id_inventaire, id_lot, stock_theorique, stock_physique) VALUES (?, ?, ?, ?)")
-                        ->execute([$id_inventaire, $id_lot, $stock_theo, $qty_physique]);
+                    if ($qty_physique !== (int)$stock_theo) {
+                        $requiresObservation = true;
+                        break;
+                    }
+                }
+            }
+
+            if ($requiresObservation && $observation === '') {
+                throw new Exception('Observation obligatoire lorsque l\'écart est différent de zéro.');
+            }
+
+            // Insertion des lignes
+            if (isset($_POST['stocks']) && is_array($_POST['stocks'])) {
+                foreach ($_POST['stocks'] as $id_lot => $qty_physique) {
+                    $id_lot = (int)$id_lot;
+                    $qty_physique = (int)$qty_physique;
+
+                    $stmtLot = $pdo->prepare("SELECT quantite_actuelle FROM StockLot WHERE id_lot = ?");
+                    $stmtLot->execute([$id_lot]);
+                    $stock_theo = $stmtLot->fetchColumn();
+                    if ($stock_theo === false) {
+                        continue;
+                    }
+
+                    if ($hasObservationColumn) {
+                        $stmtInsertDetail->execute([$id_inventaire, $id_lot, $stock_theo, $qty_physique, $observation]);
+                    } else {
+                        $stmtInsertDetail->execute([$id_inventaire, $id_lot, $stock_theo, $qty_physique]);
+                    }
                 }
             }
 
@@ -420,8 +461,12 @@ include '../includes/sidebar.php';
                     <div class="card card-body bg-light border-primary">
                         <h6 class="card-title text-primary"><i class="bi bi-info-circle"></i> Saisie directe de l'inventaire</h6>
                         <p class="small text-muted">Renseignez la quantité physique constatée pour chaque produit.</p>
-                        
                         <form method="POST" onsubmit="return confirm('Attention : Cette action va enregistrer un brouillon d\'inventaire. Si un brouillon existe déjà pour ce mois, il sera remplacé. Continuer ?');">
+                            <div class="mb-3">
+                                <label for="inventoryObservation" class="form-label fw-bold">Observations</label>
+                                <textarea id="inventoryObservation" name="observation" class="form-control" rows="3" placeholder="Décrivez les écarts constatés si un ou plusieurs lots diffèrent du stock théorique."></textarea>
+                                <div class="form-text">Obligatoire si au moins un écart existe entre stock physique et stock théorique.</div>
+                            </div>
                             <div style="max-height: 500px; overflow-y: auto;">
                                 <table class="table table-sm table-bordered bg-white">
                                     <thead class="table-light sticky-top" style="z-index: 1;">

@@ -48,8 +48,16 @@ if (isset($_POST['btn_valider_reception_finale'])) {
         // Clôturer la commande
         $pdo->prepare("UPDATE Commande SET statut = 'Reçue' WHERE id_commande = ?")->execute([$id_commande]);
 
+        // Mettre à jour le statut de paiement si fourni
+        if (isset($_POST['statut_paiement'])) {
+            $statut_paiement = $_POST['statut_paiement'];
+            if (in_array($statut_paiement, ['du', 'partielle', 'payé', 'soldé'])) {
+                $pdo->prepare("UPDATE Commande SET statut_paiement = ? WHERE id_commande = ?")->execute([$statut_paiement, $id_commande]);
+            }
+        }
+
         $pdo->commit();
-        header("Location: entrees.php?success=1");
+        header("Location: entrees_stock.php?success=1");
         exit();
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -63,7 +71,7 @@ include '../includes/sidebar.php';
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Réception de Commande</h2>
-        <a href="entrees.php" class="btn btn-outline-secondary">Retour</a>
+        <a href="entrees_stock.php" class="btn btn-outline-secondary">Retour</a>
     </div>
 
     <div class="card shadow-sm mb-4">
@@ -92,11 +100,11 @@ include '../includes/sidebar.php';
                             <?php foreach ($details as $d): ?>
                             <tr>
                                 <td>
-                                    <strong><?= htmlspecialchars($d['nom_medicament']) ?></strong>
+                                    <?= htmlspecialchars($d['nom_medicament']) ?>
                                     <input type="hidden" name="id_cmd_det[]" value="<?= $d['id_cmd_det'] ?>">
                                     <input type="hidden" name="id_produit[]" value="<?= $d['id_produit'] ?>">
                                 </td>
-                                <td class="text-center fw-bold"><?= $d['quantite_voulue'] ?></td>
+                                <td class="text-center"><?= $d['quantite_voulue'] ?></td>
                                 <td>
                                     <input type="text" name="num_lot[]" class="form-control form-control-sm" required>
                                 </td>
@@ -115,14 +123,22 @@ include '../includes/sidebar.php';
                     </table>
                 </div>
 
-                <!-- <div class="alert alert-info py-2 mt-3 small">
-                    <i class="bi bi-info-circle"></i> Assurez-vous de vérifier les quantités physiques avant de valider. Les lots vides ne seront pas créés.
-                </div> -->
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <label for="statut_paiement" class="form-label">Statut de paiement</label>
+                        <select name="statut_paiement" id="statut_paiement" class="form-select">
+                            <option value="du" <?= ($commande['statut_paiement'] ?? 'du') === 'du' ? 'selected' : '' ?>>Du</option>
+                            <option value="partielle" <?= ($commande['statut_paiement'] ?? 'du') === 'partielle' ? 'selected' : '' ?>>Partielle</option>
+                            <option value="payé" <?= ($commande['statut_paiement'] ?? 'du') === 'payé' ? 'selected' : '' ?>>Payé</option>
+                            <option value="soldé" <?= ($commande['statut_paiement'] ?? 'du') === 'soldé' ? 'selected' : '' ?>>Soldé</option>
+                        </select>
+                    </div>
+                </div>
 
                 <div class="text-end mt-4">
                     <button type="submit" name="btn_valider_reception_finale" class="btn btn-primary btn-lg px-5" 
                             onclick="return confirm('Confirmer la réception de tous ces produits ?');">
-                        <i class="bi bi-check-all"></i> Valider l'entrée en stock
+                         Valider l'entrée en stock
                     </button>
                 </div>
             </form>

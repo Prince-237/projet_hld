@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="d-flex justify-content-between">
             <a href="entrees_stock.php" class="btn btn-secondary">← Retour</a>
-            <button class="btn btn-success">💾 Enregistrer</button>
+            <button class="btn btn-info">Enregistrer</button>
         </div>
     </form>
 </div>
