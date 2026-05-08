@@ -369,7 +369,7 @@ include '../includes/sidebar.php';
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <button type="button" id="btn_add_don_item" class="btn btn-secondary w-100 mt-3">Ajouter</button>
+                    <button type="button" id="btn_add_don_item" class="btn btn-secondary w-100 my-3">Ajouter</button>
                 </div>
                 <form method="POST" id="form_group_don" style="display:none;">
                     <input type="hidden" name="btn_save_group" value="1">

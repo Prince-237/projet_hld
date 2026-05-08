@@ -310,7 +310,7 @@ echo '<link rel="stylesheet" href="../assets/css/entrees.css">';
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <button type="button" id="btn_ajouter_au_panier" class="btn btn-secondary w-100">
+                    <button type="button" id="btn_ajouter_au_panier" class="btn btn-secondary w-100 mb-3">
                         Ajouter
                     </button>
                 </div>

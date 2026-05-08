@@ -19,6 +19,9 @@ $is_achats_active = in_array($current_page, $achats_pages);
 
 $dons_pages = ['dons.php', 'sorties_dons.php', 'liste_transfer_dons.php'];
 $is_dons_active = in_array($current_page, $dons_pages);
+
+$produits_pages = ['produits.php', 'ajouter_categorie.php', 'liste_categories.php', 'voir_produits_par_categorie.php', 'ajouter_produit.php'];
+$is_produits_active = in_array($current_page, $produits_pages);
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -47,8 +50,28 @@ $is_dons_active = in_array($current_page, $dons_pages);
                 <li class="nav-item">
                     <a class="nav-link text-white <?= ($current_page == 'dashboard.php') ? 'active' : '' ?>" href="<?= $root_prefix ?>pages/dashboard.php">Tableau de bord</a>
                 </li>
+                <!-- Gestion des Produits -->
                 <li class="nav-item">
-                    <a class="nav-link text-white <?= ($current_page == 'produits.php') ? 'active' : '' ?>" href="<?= $root_prefix . $pages_prefix ?>pages/produits.php">Produits</a>
+                    <a class="nav-link text-white d-flex justify-content-between align-items-center" data-bs-toggle="collapse" href="#produitsSubmenu" role="button" aria-expanded="<?= $is_produits_active ? 'true' : 'false' ?>" aria-controls="produitsSubmenu">
+                        <span>Gestion des Produits</span>
+                        <i class="bi bi-chevron-down" style="font-size: 0.8rem;"></i>
+                    </a>
+                    <div class="collapse <?= $is_produits_active ? 'show' : '' ?>" id="produitsSubmenu">
+                        <ul class="nav flex-column ms-3">
+                            <li class="nav-item">
+                                <a class="nav-link text-white <?= ($current_page == 'ajouter_categorie.php') ? 'active' : '' ?>" href="<?= $root_prefix ?>pages/ajouter_categorie.php">Ajouter une catégorie</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-white <?= ($current_page == 'liste_categories.php') ? 'active' : '' ?>" href="<?= $root_prefix ?>pages/liste_categories.php">Liste des catégories</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-white <?= ($current_page == 'ajouter_produit.php') ? 'active' : '' ?>" href="<?= $root_prefix ?>pages/ajouter_produit.php">Ajouter un produit</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-white <?= ($current_page == 'produits.php') ? 'active' : '' ?>" href="<?= $root_prefix ?>pages/produits.php">Liste des Produits</a>
+                            </li>
+                        </ul>
+                    </div>
                 </li>
                 <!-- Gestion des Achats -->
                 <li class="nav-item">

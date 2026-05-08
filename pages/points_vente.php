@@ -93,7 +93,7 @@ include '../includes/sidebar.php';
             <table class="table table-hover">
                 <thead class="table-light">
                     <tr>
-                        <th>ID</th>
+                        <!-- <th>ID</th> -->
                         <th>Nom du Point de Vente</th>
                         <th class="text-center text-success">Total Recu (Entrant)</th>
                         <th class="text-center text-danger">Total Envoye (Sortant)</th>
@@ -103,7 +103,7 @@ include '../includes/sidebar.php';
                 <tbody>
                     <?php foreach ($points_vente as $pv): ?>
                     <tr>
-                        <td><?= $pv['id_point_vente'] ?></td>
+                        <!-- <td><?= $pv['id_point_vente'] ?></td> -->
                         <td><strong><?= htmlspecialchars($pv['nom_point_vente']) ?></strong></td>
                         <td class="text-center fw-bold"><?= $pv['total_recu'] ?></td>
                         <td class="text-center fw-bold"><?= $pv['total_envoye'] ?></td>

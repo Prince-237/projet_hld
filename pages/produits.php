@@ -11,24 +11,6 @@ $isAdmin = ($_SESSION['role'] === 'admin');
 $categories = $pdo->query("SELECT * FROM ProductCategory ORDER BY nom_categorie ASC, forme ASC")->fetchAll(PDO::FETCH_ASSOC);
 
 // ======================================
-// AJOUTER UNE CATÉGORIE (nouveau)
-// ======================================
-if ($isAdmin && isset($_POST['btn_ajouter_categorie'])) {
-    $nom_categorie = htmlspecialchars(trim($_POST['nom_categorie']));
-    $forme = htmlspecialchars(trim($_POST['forme']));
-    $dosage = htmlspecialchars(trim($_POST['dosage']));
-    
-    $stmt = $pdo->prepare("INSERT INTO ProductCategory (nom_categorie, forme, dosage) VALUES (?, ?, ?)");
-    if ($stmt->execute([$nom_categorie, $forme, $dosage])) {
-        $message_categorie = "<div class='alert alert-success'>Catégorie ajoutée avec succès !</div>";
-        // Recharger les catégories
-        $categories = $pdo->query("SELECT * FROM ProductCategory ORDER BY nom_categorie ASC, forme ASC")->fetchAll(PDO::FETCH_ASSOC);
-    } else {
-        $message_categorie = "<div class='alert alert-danger'>Erreur lors de l'ajout de la catégorie.</div>";
-    }
-}
-
-// ======================================
 // AJOUT PRODUIT (avec vérification catégorie)
 // ======================================
 if ($isAdmin && isset($_POST['btn_ajouter_produit'])) {
@@ -126,16 +108,6 @@ include '../includes/sidebar.php';
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Catalogue des Produits</h2>
-        <?php if($isAdmin): ?>
-            <div class="d-flex gap-2">
-                <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalVoirCategories">
-                    Voir les catégories
-                </button>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalProduit">
-                    + Nouveau Produit
-                </button>                
-            </div>
-        <?php endif; ?>
     </div>
 
     <?php if(isset($message)): echo $message; endif; ?>
@@ -241,129 +213,6 @@ include '../includes/sidebar.php';
 </div>
 
 <?php if($isAdmin): ?>
-<!-- MODAL AJOUT PRODUIT (avec sélection catégorie) -->
-<div class="modal fade" id="modalVoirCategories" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5>Categories disponibles</h5>
-                <button class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <?php if (empty($categories)): ?>
-                    <p class="mb-0 text-muted">Aucune categorie disponible pour le moment.</p>
-                <?php else: ?>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-striped align-middle mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Categorie</th>
-                                    <th>Forme</th>
-                                    <th>Dosage</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach($categories as $cat): ?>
-                                    <tr>
-                                        <td><?= htmlspecialchars($cat['nom_categorie']) ?></td>
-                                        <td><?= htmlspecialchars($cat['forme']) ?></td>
-                                        <td><?= htmlspecialchars($cat['dosage']) ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-primary" data-bs-target="#modalAjouterCategorie" data-bs-toggle="modal" data-bs-dismiss="modal">
-                    Creer une nouvelle categorie
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="modalProduit" tabindex="-1">
-    <div class="modal-dialog">
-        <form method="POST" class="modal-content">
-            <div class="modal-header">
-                <h5>Ajouter un nouveau produit</h5>
-                <button class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <!-- SÉLECTION CATÉGORIE -->
-                <div class="mb-3">
-                    <label class="form-label">Catégorie <span class="text-danger">*</span></label>
-                    <select name="id_categorie" class="form-select" required>
-                        <option value="">Choisir une catégorie...</option>
-                        <?php foreach($categories as $cat): ?>
-                            <option value="<?= $cat['id_categorie'] ?>">
-                                <?= htmlspecialchars($cat['nom_categorie']) ?> - <?= htmlspecialchars($cat['forme']) ?> <?= $cat['dosage'] ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <!-- BOUTON AJOUTER CATÉGORIE (à gauche du bouton Enregistrer) -->
-                <div class="d-flex gap-2 mb-3">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalAjouterCategorie">
-                        <i class="bi bi-plus-circle"></i> Nouvelle catégorie
-                    </button>
-                </div>
-
-
-                <!-- TYPE PRODUIT -->
-                <div class="mb-3">
-                    <label class="form-label">Type de produit <span class="text-danger">*</span></label>
-                    <select name="type_produit" class="form-select" required>
-                        <option value="">Choisir le type...</option>
-                        <option value="Medicament">Pharmacie</option>
-                        <option value="Laboratoire">Laboratoire</option>
-                    </select>
-                </div>
-
-                
-
-                <input type="text" name="nom" class="form-control mb-2" placeholder="Nom du médicament (ex: Doliprane)" required>
-                <input type="number" step="0.01" name="prix_unitaire" class="form-control mb-2" placeholder="Prix unitaire (FCFA)" min="0">
-                <input type="number" step="0.01" name="marge_pourcentage" class="form-control mb-2" placeholder="Marge %" value="20" min="0" max="50">
-                <input type="number" name="seuil_alerte" class="form-control" placeholder="Seuil d'alerte (ex: 30)" min="0">
-            </div>
-            <div class="modal-footer">
-                <button type="submit" name="btn_ajouter_produit" class="btn btn-primary">Enregistrer le produit</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- MODAL AJOUT CATÉGORIE (petite, juste à gauche du bouton) -->
-<div class="modal fade" id="modalAjouterCategorie" tabindex="-1">
-    <div class="modal-dialog modal-sm">
-        <form method="POST" class="modal-content">
-            <div class="modal-header">
-                <h6>Nouvelle catégorie</h6>
-                <button class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <?php if(isset($message_categorie)): echo $message_categorie; endif; ?>
-                <div class="mb-2">
-                    <input type="text" name="nom_categorie" class="form-control form-control-sm" placeholder="Nom (ex: Analgésique)" required>
-                </div>
-                <div class="mb-2">
-                    <input type="text" name="forme" class="form-control form-control-sm" placeholder="Forme (Comprimé, Sirop...)" required>
-                </div>
-                <div class="mb-3">
-                    <input type="text" name="dosage" class="form-control form-control-sm" placeholder="Dosage (500mg)" required>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="submit" name="btn_ajouter_categorie" class="btn btn-primary btn-sm">Ajouter</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 <!-- MODAL MODIFIER PRODUIT (mise à jour avec catégorie) -->
 <div class="modal fade" id="modalEditProduit" tabindex="-1">
     <div class="modal-dialog">
